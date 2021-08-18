@@ -4,14 +4,12 @@ import { ViteDevServer } from '..'
 import { resolveSSRExternal } from '../ssr/ssrExternal'
 
 /**
- * The amount to wait for requests to register newly found dependencies before triggering
+ * The amount to wait for requests to register newfound deps before triggering
  * a re-bundle + page reload
  */
 const debounceMs = 100
 
-export function createMissingImporterRegisterFn(
-  server: ViteDevServer
-): (id: string, resolved: string, ssr?: boolean) => void {
+export function createMissingImpoterRegisterFn(server: ViteDevServer) {
   const { logger } = server.config
   let knownOptimized = server._optimizeDepsMetadata!.optimized
   let currentMissing: Record<string, string> = {}
@@ -19,7 +17,7 @@ export function createMissingImporterRegisterFn(
 
   let pendingResolve: (() => void) | null = null
 
-  async function rerun(ssr: boolean | undefined) {
+  async function rerun() {
     const newDeps = currentMissing
     currentMissing = {}
 
@@ -48,8 +46,7 @@ export function createMissingImporterRegisterFn(
         server.config,
         true,
         false,
-        newDeps,
-        ssr
+        newDeps
       ))
       knownOptimized = newData!.optimized
 
@@ -66,7 +63,7 @@ export function createMissingImporterRegisterFn(
     } catch (e) {
       logger.error(
         chalk.red(`error while updating dependencies:\n${e.stack}`),
-        { timestamp: true, error: e }
+        { timestamp: true }
       )
     } finally {
       server._isRunningOptimizer = false
@@ -85,15 +82,11 @@ export function createMissingImporterRegisterFn(
     })
   }
 
-  return function registerMissingImport(
-    id: string,
-    resolved: string,
-    ssr?: boolean
-  ) {
+  return function registerMissingImport(id: string, resolved: string) {
     if (!knownOptimized[id]) {
       currentMissing[id] = resolved
       if (handle) clearTimeout(handle)
-      handle = setTimeout(() => rerun(ssr), debounceMs)
+      handle = setTimeout(rerun, debounceMs)
       server._pendingReload = new Promise((r) => {
         pendingResolve = r
       })

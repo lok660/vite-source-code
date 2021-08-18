@@ -7,11 +7,11 @@ import { Socket } from 'phoenix'
 import clip from 'clipboard'
 
 if (typeof clip === 'function') {
-  text('.cjs-clipboard', 'ok')
+  document.querySelector('.cjs-clipboard').textContent = 'ok'
 }
 
 if (typeof Socket === 'function') {
-  text('.cjs-phoenix', 'ok')
+  document.querySelector('.cjs-phoenix').textContent = 'ok'
 }
 
 function App() {
@@ -29,7 +29,3 @@ function App() {
 }
 
 ReactDOM.render(React.createElement(App), document.querySelector('.cjs'))
-
-function text(el, text) {
-  document.querySelector(el).textContent = text
-}

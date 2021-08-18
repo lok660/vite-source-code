@@ -8,24 +8,12 @@
 
   const clip = await import('clipboard')
   if (typeof clip.default === 'function') {
-    text('.cjs-dynamic-clipboard', 'ok')
+    document.querySelector('.cjs-dynamic-clipboard').textContent = 'ok'
   }
 
   const { Socket } = await import('phoenix')
   if (typeof Socket === 'function') {
-    text('.cjs-dynamic-phoenix', 'ok')
-  }
-
-  const cjsFromESM = await import('dep-cjs-compiled-from-esm')
-  console.log('cjsFromESM', cjsFromESM)
-  if (typeof cjsFromESM.default === 'function') {
-    text('.cjs-dynamic-dep-cjs-compiled-from-esm', 'ok')
-  }
-
-  const cjsFromCJS = await import('dep-cjs-compiled-from-cjs')
-  console.log('cjsFromCJS', cjsFromCJS)
-  if (typeof cjsFromCJS.default === 'function') {
-    text('.cjs-dynamic-dep-cjs-compiled-from-cjs', 'ok')
+    document.querySelector('.cjs-dynamic-phoenix').textContent = 'ok'
   }
 
   function App() {
@@ -46,8 +34,4 @@
     React.createElement(App),
     document.querySelector('.cjs-dynamic')
   )
-
-  function text(el, text) {
-    document.querySelector(el).textContent = text
-  }
 })()

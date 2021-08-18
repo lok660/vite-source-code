@@ -17,7 +17,7 @@ exports.serve = async function serve(root, isProd) {
     // client build
     await build({
       root,
-      logLevel: 'silent', // exceptions are logged by Jest
+      logLevel: 'error',
       build: {
         target: 'esnext',
         minify: false,
@@ -28,7 +28,7 @@ exports.serve = async function serve(root, isProd) {
     // server build
     await build({
       root,
-      logLevel: 'silent',
+      logLevel: 'error',
       build: {
         target: 'esnext',
         ssr: 'src/entry-server.js',
@@ -45,13 +45,9 @@ exports.serve = async function serve(root, isProd) {
       const server = app.listen(port, () => {
         resolve({
           // for test teardown
-          async close() {
-            await new Promise((resolve) => {
-              server.close(resolve)
-            })
-            if (vite) {
-              await vite.close()
-            }
+          close() {
+            server.close()
+            return vite && vite.close()
           }
         })
       })

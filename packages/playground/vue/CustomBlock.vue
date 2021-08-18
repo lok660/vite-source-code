@@ -3,12 +3,12 @@
   <p class="custom-block">{{ t('hello') }}</p>
 </template>
 
-<script lang="ts">
+<script>
 import { getCurrentInstance } from 'vue'
 
 function useI18n(locale = 'en') {
   const instance = getCurrentInstance()
-  const resources = (instance.type as any).i18n || { en: {} }
+  const resources = instance.type.i18n || { en: {} }
   function t(key) {
     const res = resources[locale] || {}
     return res[key]
@@ -16,7 +16,6 @@ function useI18n(locale = 'en') {
   return { t }
 }
 
-// export default
 export default {
   setup() {
     return { ...useI18n('ja') }
@@ -26,7 +25,7 @@ export default {
 
 <i18n lang="yaml">
 en:
-  hello: 'hello,vite!'
+  hello: "hello,vite!"
 ja:
-  hello: 'こんにちは、vite！'
+  hello: "こんにちは、vite！"
 </i18n>

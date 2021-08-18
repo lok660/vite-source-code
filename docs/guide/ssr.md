@@ -10,14 +10,6 @@ SSR specifically refers to front-end frameworks (for example React, Preact, Vue,
 The following guide also assumes prior experience working with SSR in your framework of choice, and will only focus on Vite-specific integration details.
 :::
 
-:::warning Low-level API
-This is a low-level API meant for library and framework authors. If your goal is to create an application, make sure to check out the higher-level SSR plugins and tools at [Awesome Vite SSR section](https://github.com/vitejs/awesome-vite#ssr) first. That said, many applications are successfully built directly on top of Vite's native low-level API.
-:::
-
-:::tip Help
-If you have questions, the community is usually helpful at [Vite Discord's #ssr channel](https://discord.gg/PkbxgzPhJv).
-:::
-
 ## Example Projects
 
 Vite provides built-in support for server-side rendering (SSR). The Vite playground contains example SSR setups for Vue 3 and React, which can be used as references for this guide:
@@ -75,11 +67,8 @@ async function createServer() {
 
   // Create vite server in middleware mode. This disables Vite's own HTML
   // serving logic and let the parent server take control.
-  //
-  // If you want to use Vite's own HTML serving logic (using Vite as
-  // a development middleware), using 'html' instead.
   const vite = await createViteServer({
-    server: { middlewareMode: 'ssr' }
+    server: { middlewareMode: true }
   })
   // use vite's connect instance as middleware
   app.use(vite.middlewares)
@@ -121,7 +110,7 @@ app.use('*', async (req, res) => {
 
     // 4. render the app HTML. This assumes entry-server.js's exported `render`
     //    function calls appropriate framework SSR APIs,
-    //    e.g. ReactDOMServer.renderToString()
+    //    e.g. ReacDOMServer.renderToString()
     const appHtml = await render(url)
 
     // 5. Inject the app-rendered HTML into the template.
@@ -247,14 +236,3 @@ export function mySSRPlugin() {
   }
 }
 ```
-
-## SSR Target
-
-The default target for the SSR build is a node environment, but you can also run the server in a Web Worker. Packages entry resolution is different for each platform. You can configure the target to be Web Worker using the `ssr.target` set to `'webworker'`.
-
-## SSR Bundle
-
-In some cases like `webworker` runtimes, you might want to bundle your SSR build into a single JavaScript file. You can enable this behavior by setting `ssr.noExternal` to `true`. This will do two things:
-
-- Treat all dependencies as `noExternal`
-- Throw an error if any Node.js built-ins are imported

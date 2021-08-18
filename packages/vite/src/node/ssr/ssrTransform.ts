@@ -10,8 +10,7 @@ import {
 } from 'estree'
 import { extract_names as extractNames } from 'periscopic'
 import { walk as eswalk } from 'estree-walker'
-import { combineSourcemaps } from '../utils'
-import { RawSourceMap } from '@ampproject/remapping/dist/types/types'
+import merge from 'merge-source-map'
 
 type Node = _Node & {
   start: number
@@ -26,37 +25,34 @@ export const ssrImportMetaKey = `__vite_ssr_import_meta__`
 
 export async function ssrTransform(
   code: string,
-  inMap: SourceMap | null,
-  url: string
+  inMap: SourceMap | null
 ): Promise<TransformResult | null> {
   const s = new MagicString(code)
 
   const ast = parser.parse(code, {
     sourceType: 'module',
-    ecmaVersion: 2021,
+    ecmaVersion: 2020,
     locations: true
   }) as any
 
   let uid = 0
   const deps = new Set<string>()
   const idToImportMap = new Map<string, string>()
-  const declaredConst = new Set<string>()
 
   function defineImport(node: Node, source: string) {
     deps.add(source)
     const importId = `__vite_ssr_import_${uid++}__`
     s.appendLeft(
       node.start,
-      `const ${importId} = await ${ssrImportKey}(${JSON.stringify(source)});\n`
+      `const ${importId} = ${ssrImportKey}(${JSON.stringify(source)})\n`
     )
     return importId
   }
 
-  function defineExport(position: number, name: string, local = name) {
-    s.appendRight(
-      position,
+  function defineExport(name: string, local = name) {
+    s.append(
       `\nObject.defineProperty(${ssrModuleExportsKey}, "${name}", ` +
-        `{ enumerable: true, configurable: true, get(){ return ${local} }});`
+        `{ get(){ return ${local} }})`
     )
   }
 
@@ -94,77 +90,53 @@ export async function ssrTransform(
           node.declaration.type === 'ClassDeclaration'
         ) {
           // export function foo() {}
-          defineExport(node.end, node.declaration.id!.name)
+          defineExport(node.declaration.id!.name)
         } else {
           // export const foo = 1, bar = 2
-          for (const declaration of node.declaration.declarations) {
-            const names = extractNames(declaration.id as any)
+          for (const decl of node.declaration.declarations) {
+            const names = extractNames(decl.id as any)
             for (const name of names) {
-              defineExport(node.end, name)
+              defineExport(name)
             }
           }
         }
         s.remove(node.start, (node.declaration as Node).start)
-      } else {
-        s.remove(node.start, node.end)
-        if (node.source) {
-          // export { foo, bar } from './foo'
-          const importId = defineImport(node, node.source.value as string)
-          for (const spec of node.specifiers) {
-            defineExport(
-              node.end,
-              spec.exported.name,
-              `${importId}.${spec.local.name}`
-            )
-          }
-        } else {
-          // export { foo, bar }
-          for (const spec of node.specifiers) {
-            const local = spec.local.name
-            const binding = idToImportMap.get(local)
-            defineExport(node.end, spec.exported.name, binding || local)
-          }
+      } else if (node.source) {
+        // export { foo, bar } from './foo'
+        const importId = defineImport(node, node.source.value as string)
+        for (const spec of node.specifiers) {
+          defineExport(spec.exported.name, `${importId}.${spec.local.name}`)
         }
+        s.remove(node.start, node.end)
+      } else {
+        // export { foo, bar }
+        for (const spec of node.specifiers) {
+          const local = spec.local.name
+          const binding = idToImportMap.get(local)
+          defineExport(spec.exported.name, binding || local)
+        }
+        s.remove(node.start, node.end)
       }
     }
 
     // default export
     if (node.type === 'ExportDefaultDeclaration') {
-      if ('id' in node.declaration && node.declaration.id) {
-        // named hoistable/class exports
-        // export default function foo() {}
-        // export default class A {}
-        const { name } = node.declaration.id
-        s.remove(node.start, node.start + 15 /* 'export default '.length */)
-        s.append(
-          `\nObject.defineProperty(${ssrModuleExportsKey}, "default", ` +
-            `{ enumerable: true, value: ${name} });`
-        )
-      } else {
-        // anonymous default exports
-        s.overwrite(
-          node.start,
-          node.start + 14 /* 'export default'.length */,
-          `${ssrModuleExportsKey}.default =`
-        )
-      }
+      s.overwrite(
+        node.start,
+        node.start + 14,
+        `${ssrModuleExportsKey}.default =`
+      )
     }
 
     // export * from './foo'
     if (node.type === 'ExportAllDeclaration') {
-      if (node.exported) {
-        const importId = defineImport(node, node.source.value as string)
-        s.remove(node.start, node.end)
-        defineExport(node.end, node.exported.name, `${importId}`)
-      } else {
-        const importId = defineImport(node, node.source.value as string)
-        s.remove(node.start, node.end)
-        s.appendLeft(node.end, `${ssrExportAllKey}(${importId});`)
-      }
+      const importId = defineImport(node, node.source.value as string)
+      s.remove(node.start, node.end)
+      s.append(`\n${ssrExportAllKey}(${importId})`)
     }
   }
 
-  // 3. convert references to import bindings & import.meta references
+  // 2. convert references to import bindings & import.meta references
   walk(ast, {
     onIdentifier(id, parent, parentStack) {
       const binding = idToImportMap.get(id.name)
@@ -174,22 +146,12 @@ export async function ssrTransform(
       if (isStaticProperty(parent) && parent.shorthand) {
         // let binding used in a property shorthand
         // { foo } -> { foo: __import_x__.foo }
-        // skip for destructuring patterns
+        // skip for destructure patterns
         if (
           !(parent as any).inPattern ||
-          isInDestructuringAssignment(parent, parentStack)
+          isInDestructureAssignment(parent, parentStack)
         ) {
           s.appendLeft(id.end, `: ${binding}`)
-        }
-      } else if (
-        parent.type === 'ClassDeclaration' &&
-        id === parent.superClass
-      ) {
-        if (!declaredConst.has(id.name)) {
-          declaredConst.add(id.name)
-          // locate the top-most node containing the class declaration
-          const topNode = parentStack[1]
-          s.prependRight(topNode.start, `const ${id.name} = ${binding};\n`)
         }
       } else {
         s.overwrite(id.start, id.end, binding)
@@ -204,18 +166,12 @@ export async function ssrTransform(
   })
 
   let map = s.generateMap({ hires: true })
-  if (inMap && inMap.mappings && inMap.sources.length > 0) {
-    map = combineSourcemaps(url, [
-      {
-        ...map,
-        sources: inMap.sources,
-        sourcesContent: inMap.sourcesContent
-      } as RawSourceMap,
-      inMap as RawSourceMap
-    ]) as SourceMap
-  } else {
-    map.sources = [url]
-    map.sourcesContent = [code]
+  if (inMap && inMap.mappings) {
+    map = merge(inMap, {
+      ...map,
+      sources: inMap.sources,
+      sourcesContent: inMap.sourcesContent
+    }) as SourceMap
   }
 
   return {
@@ -250,30 +206,13 @@ function walk(
   const scope: Record<string, number> = Object.create(null)
   const scopeMap = new WeakMap<_Node, Set<string>>()
 
-  const setScope = (node: FunctionNode, name: string) => {
-    let scopeIds = scopeMap.get(node)
-    if (scopeIds && scopeIds.has(name)) {
-      return
-    }
-    if (name in scope) {
-      scope[name]++
-    } else {
-      scope[name] = 1
-    }
-    if (!scopeIds) {
-      scopeIds = new Set()
-      scopeMap.set(node, scopeIds)
-    }
-    scopeIds.add(name)
-  }
-
   ;(eswalk as any)(root, {
     enter(node: Node, parent: Node | null) {
+      parent && parentStack.push(parent)
+
       if (node.type === 'ImportDeclaration') {
         return this.skip()
       }
-
-      parent && parentStack.push(parent)
 
       if (node.type === 'MetaProperty' && node.meta.name === 'import') {
         onImportMeta(node)
@@ -293,39 +232,38 @@ function walk(
             enter(child: Node, parent: Node) {
               if (
                 child.type === 'Identifier' &&
-                // do not record as scope variable if is a destructuring key
+                // do not record as scope variable if is a destructured key
                 !isStaticPropertyKey(child, parent) &&
                 // do not record if this is a default value
-                // assignment of a destructuring variable
+                // assignment of a destructured variable
                 !(
                   parent &&
                   parent.type === 'AssignmentPattern' &&
                   parent.right === child
                 )
               ) {
-                setScope(node, child.name)
+                const { name } = child
+                let scopeIds = scopeMap.get(node)
+                if (scopeIds && scopeIds.has(name)) {
+                  return
+                }
+                if (name in scope) {
+                  scope[name]++
+                } else {
+                  scope[name] = 1
+                }
+                if (!scopeIds) {
+                  scopeIds = new Set()
+                  scopeMap.set(node, scopeIds)
+                }
+                scopeIds.add(name)
               }
             }
           })
         )
       } else if (node.type === 'Property' && parent!.type === 'ObjectPattern') {
-        // mark property in destructuring pattern
+        // mark property in destructure pattern
         ;(node as any).inPattern = true
-      } else if (node.type === 'VariableDeclarator') {
-        const parentFunction = findParentFunction(parentStack)
-        if (parentFunction) {
-          if (node.id.type === 'ObjectPattern') {
-            node.id.properties.forEach((property) => {
-              if (property.type === 'RestElement') {
-                setScope(parentFunction, (property.argument as Identifier).name)
-              } else {
-                setScope(parentFunction, (property.value as Identifier).name)
-              }
-            })
-          } else {
-            setScope(parentFunction, (node.id as Identifier).name)
-          }
-        }
       }
     },
 
@@ -347,16 +285,15 @@ function walk(
 function isRefIdentifier(id: Identifier, parent: _Node, parentStack: _Node[]) {
   // declaration id
   if (
-    parent.type === 'CatchClause' ||
-    ((parent.type === 'VariableDeclarator' ||
+    (parent.type === 'VariableDeclarator' ||
       parent.type === 'ClassDeclaration') &&
-      parent.id === id)
+    parent.id === id
   ) {
     return false
   }
 
   if (isFunction(parent)) {
-    // function declaration/expression id
+    // function decalration/expression id
     if ((parent as any).id === id) {
       return false
     }
@@ -366,21 +303,16 @@ function isRefIdentifier(id: Identifier, parent: _Node, parentStack: _Node[]) {
     }
   }
 
-  // class method name
-  if (parent.type === 'MethodDefinition') {
-    return false
-  }
-
   // property key
-  // this also covers object destructuring pattern
-  if (isStaticPropertyKey(id, parent) || (parent as any).inPattern) {
+  // this also covers object destructure pattern
+  if (isStaticPropertyKey(id, parent)) {
     return false
   }
 
-  // non-assignment array destructuring pattern
+  // non-assignment array destructure pattern
   if (
     parent.type === 'ArrayPattern' &&
-    !isInDestructuringAssignment(parent, parentStack)
+    !isInDestructureAssignment(parent, parentStack)
   ) {
     return false
   }
@@ -416,16 +348,7 @@ function isFunction(node: _Node): node is FunctionNode {
   return /Function(?:Expression|Declaration)$|Method$/.test(node.type)
 }
 
-function findParentFunction(parentStack: _Node[]): FunctionNode | undefined {
-  for (let i = parentStack.length - 1; i >= 0; i--) {
-    const node = parentStack[i]
-    if (isFunction(node)) {
-      return node
-    }
-  }
-}
-
-function isInDestructuringAssignment(
+function isInDestructureAssignment(
   parent: _Node,
   parentStack: _Node[]
 ): boolean {

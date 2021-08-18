@@ -17,10 +17,7 @@ module.exports = {
 
     algolia: {
       apiKey: 'b573aa848fd57fb47d693b531297403c',
-      indexName: 'vitejs',
-      searchParameters: {
-        facetFilters: ['tags:en']
-      }
+      indexName: 'vitejs'
     },
 
     carbonAds: {
@@ -48,33 +45,13 @@ module.exports = {
             link: 'https://github.com/vitejs/awesome-vite'
           },
           {
-            text: 'DEV Community',
-            link: 'https://dev.to/t/vite'
-          },
-          {
             text: 'Rollup Plugins Compat',
             link: 'https://vite-rollup-plugins.patak.dev/'
           },
           {
             text: 'Changelog',
-            link: 'https://github.com/vitejs/vite/blob/main/packages/vite/CHANGELOG.md'
-          }
-        ]
-      },
-      {
-        text: 'Languages',
-        items: [
-          {
-            text: 'English',
-            link: 'https://vitejs.dev'
-          },
-          {
-            text: '简体中文',
-            link: 'https://cn.vitejs.dev'
-          },
-          {
-            text: '日本語',
-            link: 'https://ja.vitejs.dev'
+            link:
+              'https://github.com/vitejs/vite/blob/main/packages/vite/CHANGELOG.md'
           }
         ]
       }
@@ -101,10 +78,6 @@ module.exports = {
               link: '/guide/features'
             },
             {
-              text: 'Using Plugins',
-              link: '/guide/using-plugins'
-            },
-            {
               text: 'Dependency Pre-Bundling',
               link: '/guide/dep-pre-bundling'
             },
@@ -115,10 +88,6 @@ module.exports = {
             {
               text: 'Building for Production',
               link: '/guide/build'
-            },
-            {
-              text: 'Deploying a Static Site',
-              link: '/guide/static-deploy'
             },
             {
               text: 'Env Variables and Modes',

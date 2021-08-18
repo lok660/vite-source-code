@@ -13,7 +13,6 @@ module.exports = {
   },
   build: {
     outDir: 'dist/foo',
-    manifest: true,
-    watch: {}
+    manifest: true
   }
 }

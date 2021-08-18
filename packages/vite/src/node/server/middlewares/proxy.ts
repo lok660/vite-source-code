@@ -1,11 +1,11 @@
 import * as http from 'http'
-import { createDebugger, isObject } from '../../utils'
+import { createDebugger } from '../../utils'
 import httpProxy from 'http-proxy'
 import { HMR_HEADER } from '../ws'
+import { ViteDevServer } from '..'
 import { Connect } from 'types/connect'
 import { HttpProxy } from 'types/http-proxy'
 import chalk from 'chalk'
-import { ResolvedConfig } from '../..'
 
 const debug = createDebugger('vite:proxy')
 
@@ -28,10 +28,10 @@ export interface ProxyOptions extends HttpProxy.ServerOptions {
   ) => void | null | undefined | false | string
 }
 
-export function proxyMiddleware(
-  httpServer: http.Server | null,
-  config: ResolvedConfig
-): Connect.NextHandleFunction {
+export function proxyMiddleware({
+  httpServer,
+  config
+}: ViteDevServer): Connect.NextHandleFunction {
   const options = config.server.proxy!
 
   // lazy require only when proxy is used
@@ -46,8 +46,7 @@ export function proxyMiddleware(
 
     proxy.on('error', (err) => {
       config.logger.error(`${chalk.red(`http proxy error:`)}\n${err.stack}`, {
-        timestamp: true,
-        error: err
+        timestamp: true
       })
     })
 
@@ -78,8 +77,7 @@ export function proxyMiddleware(
     })
   }
 
-  // Keep the named function. The name is visible in debug logs via `DEBUG=connect:dispatcher ...`
-  return function viteProxyMiddleware(req, res, next) {
+  return (req, res, next) => {
     const url = req.url!
     for (const context in proxies) {
       if (
@@ -95,9 +93,9 @@ export function proxyMiddleware(
             req.url = bypassResult
             debug(`bypass: ${req.url} -> ${bypassResult}`)
             return next()
-          } else if (isObject(bypassResult)) {
+          } else if (typeof bypassResult === 'object') {
             Object.assign(options, bypassResult)
-            debug(`bypass: ${req.url} use modified options: %O`, options)
+            debug(`bypass: ${req.url} use modified opitions: %O`, options)
             return next()
           } else if (bypassResult === false) {
             debug(`bypass: ${req.url} -> 404`)

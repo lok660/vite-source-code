@@ -2,29 +2,20 @@
 
 import chalk from 'chalk'
 import readline from 'readline'
-import os from 'os'
-import { RollupError } from 'rollup'
-import { Hostname } from './utils'
 
 export type LogType = 'error' | 'warn' | 'info'
 export type LogLevel = LogType | 'silent'
 export interface Logger {
   info(msg: string, options?: LogOptions): void
   warn(msg: string, options?: LogOptions): void
-  warnOnce(msg: string, options?: LogOptions): void
-  error(msg: string, options?: LogErrorOptions): void
+  error(msg: string, options?: LogOptions): void
   clearScreen(type: LogType): void
-  hasErrorLogged(error: Error | RollupError): boolean
   hasWarned: boolean
 }
 
 export interface LogOptions {
   clear?: boolean
   timestamp?: boolean
-}
-
-export interface LogErrorOptions extends LogOptions {
-  error?: Error | RollupError | null
 }
 
 export const LogLevels: Record<LogLevel, number> = {
@@ -46,46 +37,31 @@ function clearScreen() {
   readline.clearScreenDown(process.stdout)
 }
 
-export interface LoggerOptions {
-  prefix?: string
-  allowClearScreen?: boolean
-  customLogger?: Logger
-}
-
 export function createLogger(
   level: LogLevel = 'info',
-  options: LoggerOptions = {}
+  allowClearScreen = true
 ): Logger {
-  if (options.customLogger) {
-    return options.customLogger
-  }
-
-  const loggedErrors = new WeakSet<Error | RollupError>()
-  const { prefix = '[vite]', allowClearScreen = true } = options
   const thresh = LogLevels[level]
   const clear =
     allowClearScreen && process.stdout.isTTY && !process.env.CI
       ? clearScreen
       : () => {}
 
-  function output(type: LogType, msg: string, options: LogErrorOptions = {}) {
+  function output(type: LogType, msg: string, options: LogOptions = {}) {
     if (thresh >= LogLevels[type]) {
       const method = type === 'info' ? 'log' : type
       const format = () => {
         if (options.timestamp) {
           const tag =
             type === 'info'
-              ? chalk.cyan.bold(prefix)
+              ? chalk.cyan.bold(`[vite]`)
               : type === 'warn'
-              ? chalk.yellow.bold(prefix)
-              : chalk.red.bold(prefix)
+              ? chalk.yellow.bold(`[vite]`)
+              : chalk.red.bold(`[vite]`)
           return `${chalk.dim(new Date().toLocaleTimeString())} ${tag} ${msg}`
         } else {
           return msg
         }
-      }
-      if (options.error) {
-        loggedErrors.add(options.error)
       }
       if (type === lastType && msg === lastMsg) {
         sameCount++
@@ -103,8 +79,6 @@ export function createLogger(
     }
   }
 
-  const warnedMessages = new Set<string>()
-
   const logger: Logger = {
     hasWarned: false,
     info(msg, opts) {
@@ -114,12 +88,6 @@ export function createLogger(
       logger.hasWarned = true
       output('warn', msg, opts)
     },
-    warnOnce(msg, opts) {
-      if (warnedMessages.has(msg)) return
-      logger.hasWarned = true
-      output('warn', msg, opts)
-      warnedMessages.add(msg)
-    },
     error(msg, opts) {
       logger.hasWarned = true
       output('error', msg, opts)
@@ -128,40 +96,8 @@ export function createLogger(
       if (thresh >= LogLevels[type]) {
         clear()
       }
-    },
-    hasErrorLogged(error) {
-      return loggedErrors.has(error)
     }
   }
 
   return logger
-}
-
-export function printServerUrls(
-  hostname: Hostname,
-  protocol: string,
-  port: number,
-  base: string,
-  info: Logger['info']
-): void {
-  if (hostname.host === '127.0.0.1') {
-    const url = `${protocol}://${hostname.name}:${chalk.bold(port)}${base}`
-    info(`  > Local: ${chalk.cyan(url)}`)
-    if (hostname.name !== '127.0.0.1') {
-      info(`  > Network: ${chalk.dim('use `--host` to expose')}`)
-    }
-  } else {
-    Object.values(os.networkInterfaces())
-      .flatMap((nInterface) => nInterface ?? [])
-      .filter((detail) => detail.family === 'IPv4')
-      .map((detail) => {
-        const type = detail.address.includes('127.0.0.1')
-          ? 'Local:   '
-          : 'Network: '
-        const host = detail.address.replace('127.0.0.1', hostname.name)
-        const url = `${protocol}://${host}:${chalk.bold(port)}${base}`
-        return `  > ${type} ${chalk.cyan(url)}`
-      })
-      .forEach((msg) => info(msg))
-  }
 }

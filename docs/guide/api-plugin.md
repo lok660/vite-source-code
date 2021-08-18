@@ -1,6 +1,6 @@
 # Plugin API
 
-Vite plugins extends Rollup's well-designed plugin interface with a few extra Vite-specific options. As a result, you can write a Vite plugin once and have it work for both dev and build.
+Vite plugins extends Rollup's well-designed plugin interface with a few extra vite-specific options. As a result, you can write a Vite plugin once and have it work for both dev and build.
 
 **It is recommended to go through [Rollup's plugin documentation](https://rollupjs.org/guide/en/#plugin-development) first before reading the sections below.**
 
@@ -17,51 +17,12 @@ For Vite only plugins
 
 - Vite Plugins should have a clear name with `vite-plugin-` prefix.
 - Include `vite-plugin` keyword in package.json.
-- Include a section in the plugin docs detailing why it is a Vite only plugin (for example, it uses Vite specific plugin hooks).
 
 If your plugin is only going to work for a particular framework, its name should be included as part of the prefix
 
 - `vite-plugin-vue-` prefix for Vue Plugins
 - `vite-plugin-react-` prefix for React Plugins
 - `vite-plugin-svelte-` prefix for Svelte Plugins
-
-## Plugins config
-
-Users will add plugins to the project `devDependencies` and configure them using the `plugins` array option.
-
-```js
-// vite.config.js
-import vitePlugin from 'vite-plugin-feature'
-import rollupPlugin from 'rollup-plugin-feature'
-
-export default defineConfig({
-  plugins: [vitePlugin(), rollupPlugin()]
-})
-```
-
-Falsy plugins will be ignored, which can be used to easily activate or deactivate plugins.
-
-`plugins` also accept presets including several plugins as a single element. This is useful for complex features (like framework integration) that are implemented using several plugins. The array will be flattened internally.
-
-```js
-// framework-plugin
-import frameworkRefresh from 'vite-plugin-framework-refresh'
-import frameworkDevtools from 'vite-plugin-framework-devtools'
-
-export default function framework(config) {
-  return [frameworkRefresh(config), frameworkDevTools(config)]
-}
-```
-
-```js
-// vite.config.js
-import { defineConfig } from 'vite'
-import framework from 'vite-plugin-framework'
-
-export default defineConfig({
-  plugins: [framework()]
-})
-```
 
 ## Simple Examples
 
@@ -151,11 +112,11 @@ Vite plugins can also provide hooks that serve Vite-specific purposes. These hoo
 ### `config`
 
 - **Type:** `(config: UserConfig, env: { mode: string, command: string }) => UserConfig | null | void`
-- **Kind:** `async`, `sequential`
+- **Kind:** `sync`, `sequential`
 
   Modify Vite config before it's resolved. The hook receives the raw user config (CLI options merged with config file) and the current config env which exposes the `mode` and `command` being used. It can return a partial config object that will be deeply merged into existing config, or directly mutate the config (if the default merging cannot achieve the desired result).
 
-  **Example:**
+  **Example**
 
   ```js
   // return partial config (recommended)
@@ -185,8 +146,8 @@ Vite plugins can also provide hooks that serve Vite-specific purposes. These hoo
 
 ### `configResolved`
 
-- **Type:** `(config: ResolvedConfig) => void | Promise<void>`
-- **Kind:** `async`, `parallel`
+- **Type:** `(config: ResolvedConfig) => void`
+- **Kind:** `sync`, `sequential`
 
   Called after the Vite config is resolved. Use this hook to read and store the final resolved config. It is also useful when the plugin needs to do something different based the command is being run.
 
@@ -228,7 +189,7 @@ Vite plugins can also provide hooks that serve Vite-specific purposes. These hoo
   const myPlugin = () => ({
     name: 'configure-server',
     configureServer(server) {
-      server.middlewares.use((req, res, next) => {
+      server.app.use((req, res, next) => {
         // custom handle request...
       })
     }
@@ -246,7 +207,7 @@ Vite plugins can also provide hooks that serve Vite-specific purposes. These hoo
       // return a post hook that is called after internal middlewares are
       // installed
       return () => {
-        server.middlewares.use((req, res, next) => {
+        server.app.use((req, res, next) => {
           // custom handle request...
         })
       }
@@ -290,7 +251,7 @@ Vite plugins can also provide hooks that serve Vite-specific purposes. These hoo
   - An array of tag descriptor objects (`{ tag, attrs, children }`) to inject to the existing HTML. Each tag can also specify where it should be injected to (default is prepending to `<head>`)
   - An object containing both as `{ html, tags }`
 
-  **Basic Example:**
+  **Basic Example**
 
   ```js
   const htmlPlugin = () => {
@@ -403,13 +364,13 @@ A Vite plugin can additionally specify an `enforce` property (similar to webpack
 
 ## Conditional Application
 
-By default plugins are invoked for both serve and build. In cases where a plugin needs to be conditionally applied only during serve or build, use the `apply` property to only invoke them during `'build'` or `'serve'`:
+By default plugins are invoked for both serve and build. In cases where a plugin needs to be conditionally applied only during serve or build, use the `apply` property:
 
 ```js
 function myPlugin() {
   return {
     name: 'build-only',
-    apply: 'build' // or 'serve'
+    apply: 'build'
   }
 }
 ```
@@ -418,7 +379,7 @@ function myPlugin() {
 
 A fair number of Rollup plugins will work directly as a Vite plugin (e.g. `@rollup/plugin-alias` or `@rollup/plugin-json`), but not all of them, since some plugin hooks do not make sense in an unbundled dev server context.
 
-In general, as long as a Rollup plugin fits the following criterias then it should just work as a Vite plugin:
+In general, as long as a rollup plugin fits the following criterias then it should just work as a Vite plugin:
 
 - It doesn't use the [`moduleParsed`](https://rollupjs.org/guide/en/#moduleparsed) hook.
 - It doesn't have strong coupling between bundle-phase hooks and output-phase hooks.
@@ -430,9 +391,8 @@ You can also augment an existing Rollup plugin with Vite-only properties:
 ```js
 // vite.config.js
 import example from 'rollup-plugin-example'
-import { defineConfig } from 'vite'
 
-export default defineConfig({
+export default {
   plugins: [
     {
       ...example(),
@@ -440,10 +400,10 @@ export default defineConfig({
       apply: 'build'
     }
   ]
-})
+}
 ```
 
-Check out [Vite Rollup Plugins](https://vite-rollup-plugins.patak.dev) for a list of compatible official Rollup plugins with usage instructions.
+Check out [Vite Rollup Plugins](https://vite-rollup-plugins.patak.dev) for a list of compatible official rollup plugins with usage instructions.
 
 ## Path normalization
 

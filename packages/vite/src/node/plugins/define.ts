@@ -31,23 +31,14 @@ export function definePlugin(config: ResolvedConfig): Plugin {
   }
 
   const replacements: Record<string, string | undefined> = {
-    'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || config.mode),
-    'global.process.env.NODE_ENV': JSON.stringify(
-      process.env.NODE_ENV || config.mode
-    ),
-    'globalThis.process.env.NODE_ENV': JSON.stringify(
-      process.env.NODE_ENV || config.mode
-    ),
+    'process.env.NODE_ENV': JSON.stringify(config.mode),
     ...userDefine,
     ...importMetaKeys,
-    'process.env.': `({}).`,
-    'global.process.env.': `({}).`,
-    'globalThis.process.env.': `({}).`
+    'process.env.': `({}).`
   }
 
   const pattern = new RegExp(
-    // Do not allow preceding '.', but do allow preceding '...' for spread operations
-    '(?<!(?<!\\.\\.)\\.)\\b(' +
+    '\\b(' +
       Object.keys(replacements)
         .map((str) => {
           return str.replace(/[-[\]/{}()*+?.\\^$|]/g, '\\$&')
@@ -83,7 +74,7 @@ export function definePlugin(config: ResolvedConfig): Plugin {
 
       const s = new MagicString(code)
       let hasReplaced = false
-      let match: RegExpExecArray | null
+      let match
 
       while ((match = pattern.exec(code))) {
         hasReplaced = true

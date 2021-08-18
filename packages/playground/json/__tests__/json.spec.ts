@@ -1,5 +1,3 @@
-import { isBuild } from '../../testUtils'
-
 const json = require('../test.json')
 const deepJson = require('@vue/runtime-core/package.json')
 const stringified = JSON.stringify(json)
@@ -29,18 +27,6 @@ test('dynamic import, named', async () => {
   expect(await page.textContent('.dynamic-named')).toBe(json.hello)
 })
 
-test('fetch', async () => {
+test('raw fetch', async () => {
   expect(await page.textContent('.fetch')).toBe(stringified)
-})
-
-test('?url', async () => {
-  expect(await page.textContent('.url')).toMatch(
-    isBuild ? 'data:application/json' : '/test.json'
-  )
-})
-
-test('?raw', async () => {
-  expect(await page.textContent('.raw')).toBe(
-    require('fs').readFileSync(require.resolve('../test.json'), 'utf-8')
-  )
 })

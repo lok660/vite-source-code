@@ -8,8 +8,7 @@ module.exports = {
   build: {
     lib: {
       entry: path.resolve(__dirname, 'src/main.js'),
-      name: 'MyLib',
-      fileName: (format) => `my-lib-custom-filename.${format}.js`
+      name: 'MyLib'
     }
   },
   plugins: [

@@ -7,9 +7,6 @@ text('.imported-sass', sass)
 import less from './less.less'
 text('.imported-less', less)
 
-import stylus from './stylus.styl'
-text('.imported-stylus', stylus)
-
 import mod from './mod.module.css'
 document.querySelector('.modules').classList.add(mod['apply-color'])
 text('.modules-code', JSON.stringify(mod, null, 2))
@@ -18,23 +15,7 @@ import sassMod from './mod.module.scss'
 document.querySelector('.modules-sass').classList.add(sassMod['apply-color'])
 text('.modules-sass-code', JSON.stringify(sassMod, null, 2))
 
-import composesPathResolvingMod from './composes-path-resolving.module.css'
-document
-  .querySelector('.path-resolved-modules-css')
-  .classList.add(...composesPathResolvingMod['path-resolving-css'].split(' '))
-document
-  .querySelector('.path-resolved-modules-sass')
-  .classList.add(...composesPathResolvingMod['path-resolving-sass'].split(' '))
-document
-  .querySelector('.path-resolved-modules-less')
-  .classList.add(...composesPathResolvingMod['path-resolving-less'].split(' '))
-text(
-  '.path-resolved-modules-code',
-  JSON.stringify(composesPathResolvingMod, null, 2)
-)
-
 import './dep.css'
-import './glob-dep.css'
 
 function text(el, text) {
   document.querySelector(el).textContent = text
@@ -62,7 +43,3 @@ import('./async')
 if (import.meta.env.DEV) {
   import('./async-treeshaken')
 }
-
-// inlined
-import inlined from './inlined.css?inline'
-text('.inlined-code', inlined)

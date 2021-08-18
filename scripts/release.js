@@ -9,7 +9,7 @@ const fs = require('fs')
 const args = require('minimist')(process.argv.slice(2))
 const semver = require('semver')
 const chalk = require('chalk')
-const prompts = require('prompts')
+const { prompt } = require('enquirer')
 
 const pkgDir = process.cwd()
 const pkgPath = path.resolve(pkgDir, 'package.json')
@@ -44,7 +44,7 @@ const versionIncrements = [
 /**
  * @param {import('semver').ReleaseType} i
  */
-const inc = (i) => semver.inc(currentVersion, i, 'beta')
+const inc = (i) => semver.inc(currentVersion, i)
 
 /**
  * @param {string} bin
@@ -77,22 +77,21 @@ async function main() {
     /**
      * @type {{ release: string }}
      */
-    const { release } = await prompts({
+    const { release } = await prompt({
       type: 'select',
       name: 'release',
       message: 'Select release type',
       choices: versionIncrements
         .map((i) => `${i} (${inc(i)})`)
         .concat(['custom'])
-        .map((i) => ({ value: i, title: i }))
     })
 
     if (release === 'custom') {
       /**
        * @type {{ version: string }}
        */
-      const res = await prompts({
-        type: 'text',
+      const res = await prompt({
+        type: 'input',
         name: 'version',
         message: 'Input custom version',
         initial: currentVersion
@@ -110,23 +109,10 @@ async function main() {
   const tag =
     pkgName === 'vite' ? `v${targetVersion}` : `${pkgName}@${targetVersion}`
 
-  if (targetVersion.includes('beta') && !args.tag) {
-    /**
-     * @type {{ tagBeta: boolean }}
-     */
-    const { tagBeta } = await prompts({
-      type: 'confirm',
-      name: 'tagBeta',
-      message: `Publish under dist-tag "beta"?`
-    })
-
-    if (tagBeta) args.tag = 'beta'
-  }
-
   /**
    * @type {{ yes: boolean }}
    */
-  const { yes } = await prompts({
+  const { yes } = await prompt({
     type: 'confirm',
     name: 'yes',
     message: `Releasing ${tag}. Confirm?`

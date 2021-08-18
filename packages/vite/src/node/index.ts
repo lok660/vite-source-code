@@ -12,10 +12,8 @@ export type {
   ViteDevServer,
   ServerOptions,
   CorsOptions,
-  FileSystemServeOptions,
   CorsOrigin,
-  ServerHook,
-  ResolvedServerOptions
+  ServerHook
 } from './server'
 export type {
   BuildOptions,
@@ -28,14 +26,7 @@ export type {
   DepOptimizationOptions
 } from './optimizer'
 export type { Plugin } from './plugin'
-export type {
-  Logger,
-  LogOptions,
-  LogErrorOptions,
-  LogLevel,
-  LogType,
-  LoggerOptions
-} from './logger'
+export type { Logger, LogOptions, LogLevel, LogType } from './logger'
 export type {
   AliasOptions,
   ResolverFunction,
@@ -52,7 +43,6 @@ export type {
 export type { CSSOptions, CSSModulesOptions } from './plugins/css'
 export type { JsonOptions } from './plugins/json'
 export type { ESBuildOptions, ESBuildTransformResult } from './plugins/esbuild'
-export type { Manifest, ManifestChunk } from './plugins/manifest'
 export type {
   PackageData,
   ResolveOptions,
@@ -81,6 +71,5 @@ export type { Connect } from 'types/connect'
 export type { HttpProxy } from 'types/http-proxy'
 export type { FSWatcher, WatchOptions } from 'types/chokidar'
 export type { Terser } from 'types/terser'
+export type { CleanCSS } from 'types/clean-css'
 export type { RollupCommonJSOptions } from 'types/commonjs'
-export type { RollupDynamicImportVarsOptions } from 'types/dynamicImportVars'
-export type { Matcher, AnymatchPattern, AnymatchFn } from 'types/anymatch'

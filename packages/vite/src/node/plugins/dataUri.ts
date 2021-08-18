@@ -12,17 +12,12 @@ const dataUriPrefix = `/@data-uri/`
  * Build only, since importing from a data URI works natively.
  */
 export function dataURIPlugin(): Plugin {
-  let resolved: {
+  const resolved: {
     [key: string]: string
-  }
+  } = {}
 
   return {
     name: 'vite:data-uri',
-
-    buildStart() {
-      resolved = {}
-    },
-
     resolveId(id) {
       if (!dataUriRE.test(id)) {
         return null

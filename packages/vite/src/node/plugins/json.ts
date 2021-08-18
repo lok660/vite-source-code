@@ -8,7 +8,6 @@
 
 import { dataToEsm } from '@rollup/pluginutils'
 import { Plugin } from 'rollup'
-import { SPECIAL_QUERY_RE } from '../constants'
 
 export interface JsonOptions {
   /**
@@ -36,7 +35,6 @@ export function jsonPlugin(
 
     transform(json, id) {
       if (!jsonExtRE.test(id)) return null
-      if (SPECIAL_QUERY_RE.test(id)) return null
 
       try {
         if (options.stringify) {

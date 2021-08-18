@@ -1,4 +1,3 @@
-const path = require('path')
 /**
  * @type {import('vite').UserConfig}
  */
@@ -32,17 +31,7 @@ module.exports = {
     },
     preprocessorOptions: {
       scss: {
-        additionalData: `$injectedColor: orange;`,
-        importer(url) {
-          if (url === 'virtual-dep') return { contents: '' }
-        }
-      },
-      styl: {
-        additionalData: `$injectedColor ?= orange`,
-        imports: [
-          './options/relative-import.styl',
-          path.join(__dirname, 'options/absolute-import.styl')
-        ]
+        additionalData: `$injectedColor: orange;`
       }
     }
   }

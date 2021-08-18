@@ -22,9 +22,5 @@ module.exports = {
   },
   build: {
     minify: false
-  },
-  define: {
-    __VUE_OPTIONS_API__: true,
-    __VUE_PROD_DEVTOOLS__: true
   }
 }

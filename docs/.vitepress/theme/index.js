@@ -19,7 +19,7 @@ export default {
             },
             [h('span', 'Sponsors')]
           ),
-          ...sponsors.map(({ href, src, name, id }) =>
+          ...sponsors.map(({ href, src, name }) =>
             h(
               'a',
               {
@@ -28,7 +28,7 @@ export default {
                 rel: 'noopener',
                 'aria-label': 'sponsor-img'
               },
-              [h('img', { src, alt: name, id: `sponsor-${id}` })]
+              [h('img', { src, alt: name })]
             )
           )
         ])

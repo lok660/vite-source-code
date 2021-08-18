@@ -11,13 +11,10 @@ import {
   prettifyUrl,
   removeTimestampQuery,
   timeFrom,
-  ensureWatchedFile,
-  isObject
+  ensureWatchedFile
 } from '../utils'
 import { checkPublicFile } from '../plugins/asset'
 import { ssrTransform } from '../ssr/ssrTransform'
-import { injectSourcesContent } from './sourcemap'
-import { isFileServingAllowed } from './middlewares/static'
 
 const debugLoad = createDebugger('vite:load')
 const debugTransform = createDebugger('vite:transform')
@@ -38,11 +35,9 @@ export interface TransformOptions {
 
 export async function transformRequest(
   url: string,
-  server: ViteDevServer,
+  { config, pluginContainer, moduleGraph, watcher }: ViteDevServer,
   options: TransformOptions = {}
 ): Promise<TransformResult | null> {
-  const { config, pluginContainer, moduleGraph, watcher } = server
-
   url = removeTimestampQuery(url)
   const { root, logger } = config
   const prettyUrl = isDebug ? prettifyUrl(url, root) : ''
@@ -68,24 +63,20 @@ export async function transformRequest(
   const loadStart = isDebug ? Date.now() : 0
   const loadResult = await pluginContainer.load(id, ssr)
   if (loadResult == null) {
-    // if this is an html request and there is no load result, skip ahead to
-    // SPA fallback.
-    if (options.html && !id.endsWith('.html')) {
-      return null
-    }
     // try fallback loading it from fs as string
     // if the file is a binary, there should be a plugin that already loaded it
     // as string
-    // only try the fallback if access is allowed, skip for out of root url
-    // like /service-worker.js or /api/users
-    if (options.ssr || isFileServingAllowed(file, server)) {
-      try {
-        code = await fs.readFile(file, 'utf-8')
-        isDebug && debugLoad(`${timeFrom(loadStart)} [fs] ${prettyUrl}`)
-      } catch (e) {
-        if (e.code !== 'ENOENT') {
-          throw e
-        }
+    try {
+      code = await fs.readFile(file, 'utf-8')
+      isDebug && debugLoad(`${timeFrom(loadStart)} [fs] ${prettyUrl}`)
+    } catch (e) {
+      // if this is an html request and there is no load result, skip ahead to
+      // SPA fallback.
+      if (options.html) {
+        return null
+      }
+      if (e.code !== 'ENOENT') {
+        throw e
       }
     }
     if (code) {
@@ -102,7 +93,7 @@ export async function transformRequest(
     }
   } else {
     isDebug && debugLoad(`${timeFrom(loadStart)} [plugin] ${prettyUrl}`)
-    if (isObject(loadResult)) {
+    if (typeof loadResult === 'object') {
       code = loadResult.code
       map = loadResult.map
     } else {
@@ -131,7 +122,7 @@ export async function transformRequest(
   const transformResult = await pluginContainer.transform(code, id, map, ssr)
   if (
     transformResult == null ||
-    (isObject(transformResult) && transformResult.code == null)
+    (typeof transformResult === 'object' && transformResult.code == null)
   ) {
     // no transform applied, keep code as-is
     isDebug &&
@@ -144,19 +135,8 @@ export async function transformRequest(
     map = transformResult.map
   }
 
-  if (map && mod.file) {
-    map = (typeof map === 'string' ? JSON.parse(map) : map) as SourceMap
-    if (map.mappings && !map.sourcesContent) {
-      await injectSourcesContent(map, mod.file, logger)
-    }
-  }
-
   if (ssr) {
-    return (mod.ssrTransformResult = await ssrTransform(
-      code,
-      map as SourceMap,
-      url
-    ))
+    return (mod.ssrTransformResult = await ssrTransform(code, map as SourceMap))
   } else {
     return (mod.transformResult = {
       code,

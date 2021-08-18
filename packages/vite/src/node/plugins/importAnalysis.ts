@@ -48,12 +48,8 @@ const clientDir = normalizePath(CLIENT_DIR)
 const skipRE = /\.(map|json)$/
 const canSkip = (id: string) => skipRE.test(id) || isDirectCSSRequest(id)
 
-function isExplicitImportRequired(url: string) {
-  return !isJSRequest(cleanUrl(url)) && !isCSSRequest(url)
-}
-
 function markExplicitImport(url: string) {
-  if (isExplicitImportRequired(url)) {
+  if (!isJSRequest(cleanUrl(url)) && !isCSSRequest(url)) {
     return injectQuery(url, 'import')
   }
   return url
@@ -111,11 +107,7 @@ export function importAnalysisPlugin(config: ResolvedConfig): Plugin {
 
       const rewriteStart = Date.now()
       await init
-      let imports: readonly ImportSpecifier[] = []
-      // strip UTF-8 BOM
-      if (source.charCodeAt(0) === 0xfeff) {
-        source = source.slice(1)
-      }
+      let imports: ImportSpecifier[] = []
       try {
         imports = parseImports(source)[0]
       } catch (e) {
@@ -180,10 +172,7 @@ export function importAnalysisPlugin(config: ResolvedConfig): Plugin {
 
         if (!resolved) {
           this.error(
-            `Failed to resolve import "${url}" from "${path.relative(
-              process.cwd(),
-              importer
-            )}". Does the file exist?`,
+            `Failed to resolve import "${url}". Does the file exist?`,
             pos
           )
         }
@@ -222,7 +211,7 @@ export function importAnalysisPlugin(config: ResolvedConfig): Plugin {
           // for relative js/css imports, inherit importer's version query
           // do not do this for unknown type imports, otherwise the appended
           // query can break 3rd party plugin's extension checks.
-          if (isRelative && !/[\?&]import=?\b/.test(url)) {
+          if (isRelative && !/[\?&]import\b/.test(url)) {
             const versionMatch = importer.match(DEP_VERSION_RE)
             if (versionMatch) {
               url = injectQuery(url, versionMatch[1])
@@ -257,17 +246,14 @@ export function importAnalysisPlugin(config: ResolvedConfig): Plugin {
           e: end,
           ss: expStart,
           se: expEnd,
-          d: dynamicIndex,
-          // #2083 User may use escape path,
-          // so use imports[index].n to get the unescaped string
-          // @ts-ignore
-          n: specifier
+          d: dynamicIndex
         } = imports[index]
 
         const rawUrl = source.slice(start, end)
+        let url = rawUrl
 
         // check import.meta usage
-        if (rawUrl === 'import.meta') {
+        if (url === 'import.meta') {
           const prop = source.slice(end, end + 4)
           if (prop === '.hot') {
             hasHMR = true
@@ -288,96 +274,101 @@ export function importAnalysisPlugin(config: ResolvedConfig): Plugin {
           } else if (prop === '.glo' && source[end + 4] === 'b') {
             // transform import.meta.glob()
             // e.g. `import.meta.glob('glob:./dir/*.js')`
-            const { imports, importsString, exp, endIndex, base, pattern } =
-              await transformImportGlob(
-                source,
-                start,
-                importer,
-                index,
-                root,
-                normalizeUrl
-              )
+            const {
+              imports,
+              importsString,
+              exp,
+              endIndex,
+              base,
+              pattern
+            } = await transformImportGlob(
+              source,
+              start,
+              importer,
+              index,
+              root,
+              normalizeUrl
+            )
             str().prepend(importsString)
             str().overwrite(expStart, endIndex, exp)
             imports.forEach((url) => importedUrls.add(url.replace(base, '/')))
-            if (!(importerModule.file! in server._globImporters)) {
-              server._globImporters[importerModule.file!] = {
-                module: importerModule,
-                importGlobs: []
-              }
-            }
-            server._globImporters[importerModule.file!].importGlobs.push({
+            server._globImporters[importerModule.file!] = {
+              module: importerModule,
               base,
               pattern
-            })
+            }
           }
           continue
         }
 
-        const isDynamicImport = dynamicIndex >= 0
+        // For dynamic id, check if it's a literal that we can resolve
+        let hasViteIgnore = false
+        let isLiteralDynamicId = false
+        if (dynamicIndex >= 0) {
+          // check @vite-ignore which suppresses dynamic import warning
+          hasViteIgnore = /\/\*\s*@vite-ignore\s*\*\//.test(url)
+          // #998 remove comment
+          url = url.replace(/\/\*[\s\S]*?\*\/|([^\\:]|^)\/\/.*$/gm, '').trim()
+          const literalIdMatch = url.match(/^(?:'([^']+)'|"([^"]+)")$/)
+          if (literalIdMatch) {
+            isLiteralDynamicId = true
+            url = literalIdMatch[1] || literalIdMatch[2]
+          }
+        }
 
-        // static import or valid string in dynamic import
         // If resolvable, let's resolve it
-        if (specifier) {
+        if (dynamicIndex === -1 || isLiteralDynamicId) {
           // skip external / data uri
-          if (isExternalUrl(specifier) || isDataUrl(specifier)) {
+          if (isExternalUrl(url) || isDataUrl(url)) {
             continue
           }
           // skip ssr external
           if (ssr) {
             if (
               server._ssrExternals &&
-              shouldExternalizeForSSR(specifier, server._ssrExternals)
+              shouldExternalizeForSSR(url, server._ssrExternals)
             ) {
               continue
             }
-            if (isBuiltin(specifier)) {
+            if (isBuiltin(url)) {
               continue
             }
           }
           // skip client
-          if (specifier === clientPublicPath) {
+          if (url === clientPublicPath) {
             continue
           }
 
           // warn imports to non-asset /public files
           if (
-            specifier.startsWith('/') &&
-            !config.assetsInclude(cleanUrl(specifier)) &&
-            !specifier.endsWith('.json') &&
-            checkPublicFile(specifier, config)
+            url.startsWith('/') &&
+            !config.assetsInclude(cleanUrl(url)) &&
+            !url.endsWith('.json') &&
+            checkPublicFile(url, config)
           ) {
             throw new Error(
-              `Cannot import non-asset file ${specifier} which is inside /public.` +
+              `Cannot import non-asset file ${url} which is inside /public.` +
                 `JS/CSS files inside /public are copied as-is on build and ` +
                 `can only be referenced via <script src> or <link href> in html.`
             )
           }
 
           // normalize
-          const [normalizedUrl, resolvedId] = await normalizeUrl(
-            specifier,
-            start
-          )
-          let url = normalizedUrl
-
-          // record as safe modules
-          server?.moduleGraph.safeModulesPath.add(
-            cleanUrl(url).slice(4 /* '/@fs'.length */)
-          )
+          const [normalizedUrl, resolvedId] = await normalizeUrl(url, start)
+          url = normalizedUrl
 
           // rewrite
-          if (url !== specifier) {
+          if (url !== rawUrl) {
             // for optimized cjs deps, support named imports by rewriting named
             // imports to const assignments.
             if (resolvedId.endsWith(`&es-interop`)) {
               url = url.slice(0, -11)
-              if (isDynamicImport) {
+              if (isLiteralDynamicId) {
                 // rewrite `import('package')` to expose the default directly
                 str().overwrite(
                   dynamicIndex,
                   end + 1,
-                  `import('${url}').then(m => m.default && m.default.__esModule ? m.default : ({ ...m.default, default: m.default }))`
+                  `import('${url}').then(m => ({ ...m.default, default: m.default }))`
                 )
               } else {
                 const exp = source.slice(expStart, expEnd)
@@ -390,7 +381,7 @@ export function importAnalysisPlugin(config: ResolvedConfig): Plugin {
                 }
               }
             } else {
-              str().overwrite(start, end, isDynamicImport ? `'${url}'` : url)
+              str().overwrite(start, end, isLiteralDynamicId ? `'${url}'` : url)
             }
           }
 
@@ -398,12 +389,6 @@ export function importAnalysisPlugin(config: ResolvedConfig): Plugin {
           // make sure to normalize away base
           importedUrls.add(url.replace(base, '/'))
         } else if (!importer.startsWith(clientDir) && !ssr) {
-          // check @vite-ignore which suppresses dynamic import warning
-          const hasViteIgnore = /\/\*\s*@vite-ignore\s*\*\//.test(rawUrl)
-
-          const url = rawUrl
-            .replace(/\/\*[\s\S]*?\*\/|([^\\:]|^)\/\/.*$/gm, '')
-            .trim()
           if (!hasViteIgnore && !isSupportedDynamicImport(url)) {
             this.warn(
               `\n` +
@@ -419,13 +404,8 @@ export function importAnalysisPlugin(config: ResolvedConfig): Plugin {
                 `/* @vite-ignore */ comment inside the import() call to suppress this warning.\n`
             )
           }
-          if (
-            !/^('.*'|".*"|`.*`)$/.test(url) ||
-            isExplicitImportRequired(url.slice(1, -1))
-          ) {
-            needQueryInjectHelper = true
-            str().overwrite(start, end, `__vite__injectQuery(${url}, 'import')`)
-          }
+          needQueryInjectHelper = true
+          str().overwrite(start, end, `__vite__injectQuery(${url}, 'import')`)
         }
       }
 
@@ -486,17 +466,6 @@ export function importAnalysisPlugin(config: ResolvedConfig): Plugin {
       // node CSS imports does its own graph update in the css plugin so we
       // only handle js graph updates here.
       if (!isCSSRequest(importer)) {
-        // attached by pluginContainer.addWatchFile
-        const pluginImports = (this as any)._addedImports as
-          | Set<string>
-          | undefined
-        if (pluginImports) {
-          ;(
-            await Promise.all(
-              [...pluginImports].map((id) => normalizeUrl(id, 0))
-            )
-          ).forEach(([url]) => importedUrls.add(url))
-        }
         const prunedImports = await moduleGraph.updateModuleInfo(
           importerModule,
           importedUrls,
@@ -559,12 +528,10 @@ function transformCjsImport(
   rawUrl: string,
   importIndex: number
 ): string | undefined {
-  const node = (
-    parseJS(importExp, {
-      ecmaVersion: 2020,
-      sourceType: 'module'
-    }) as any
-  ).body[0] as Node
+  const node = (parseJS(importExp, {
+    ecmaVersion: 2020,
+    sourceType: 'module'
+  }) as any).body[0] as Node
 
   if (node.type === 'ImportDeclaration') {
     if (!node.specifiers.length) {
@@ -607,6 +574,6 @@ function transformCjsImport(
         lines.push(`const ${localName} = ${cjsModuleName}["${importedName}"]`)
       }
     })
-    return lines.join('; ')
+    return lines.join('\n')
   }
 }

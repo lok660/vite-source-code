@@ -1,14 +1,17 @@
 # Building for Production
 
-When it is time to deploy your app for production, simply run the `vite build` command. By default, it uses `<root>/index.html` as the build entry point, and produces an application bundle that is suitable to be served over a static hosting service. Check out the [Deploying a Static Site](./static-deploy) for guides about popular services.
+When it is time to deploy your app for production, simply run the `vite build` command. By default, it uses `<root>/index.html` as the build entry point, and produces an application bundle that is suitable to be served over a static hosting service.
 
 ## Browser Compatibility
 
-The production bundle assumes support for modern JavaScript. By default, vite targets browsers which support the [native ESM script tag](https://caniuse.com/es6-module) and [native ESM dynamic import](https://caniuse.com/es6-module-dynamic-import). As a reference, vite uses this [browserslist](https://github.com/browserslist/browserslist) query:
+The production bundle assumes a baseline support for modern JavaScript. By default, all code is transpiled targeting [browsers with native ESM script tag support](https://caniuse.com/es6-module):
 
-```
-defaults and supports es6-module and supports es6-module-dynamic-import, not opera > 0, not samsung > 0, not and_qq > 0
-```
+- Chrome >=61
+- Firefox >=60
+- Safari >=11
+- Edge >=16
+
+A lightweight [dynamic import polyfill](https://github.com/GoogleChromeLabs/dynamic-import-polyfill) is also automatically injected.
 
 You can specify custom targets via the [`build.target` config option](/config/#build-target), where the lowest target is `es2015`.
 
@@ -32,31 +35,16 @@ The build can be customized via various [build config options](/config/#build-op
 
 ```js
 // vite.config.js
-module.exports = defineConfig({
+module.exports = {
   build: {
     rollupOptions: {
       // https://rollupjs.org/guide/en/#big-list-of-options
     }
   }
-})
+}
 ```
 
 For example, you can specify multiple Rollup outputs with plugins that are only applied during build.
-
-## Rebuild on files changes
-
-You can enable rollup watcher with `vite build --watch`. Or, you can directly adjust the underlying [`WatcherOptions`](https://rollupjs.org/guide/en/#watch-options) via `build.watch`:
-
-```js
-// vite.config.js
-module.exports = defineConfig({
-  build: {
-    watch: {
-      // https://rollupjs.org/guide/en/#watch-options
-    }
-  }
-})
-```
 
 ## Multi-Page App
 
@@ -79,9 +67,8 @@ During build, all you need to do is to specify multiple `.html` files as entry p
 ```js
 // vite.config.js
 const { resolve } = require('path')
-const { defineConfig } = require('vite')
 
-module.exports = defineConfig({
+module.exports = {
   build: {
     rollupOptions: {
       input: {
@@ -90,10 +77,8 @@ module.exports = defineConfig({
       }
     }
   }
-})
+}
 ```
-
-If you specify a different root, remember that `__dirname` will still be the folder of your vite.config.js file when resolving the input paths. Therefore, you will need to add your `root` entry to the arguments for `resolve`.
 
 ## Library Mode
 
@@ -104,14 +89,12 @@ When it is time to bundle your library for distribution, use the [`build.lib` co
 ```js
 // vite.config.js
 const path = require('path')
-const { defineConfig } = require('vite')
 
-module.exports = defineConfig({
+module.exports = {
   build: {
     lib: {
       entry: path.resolve(__dirname, 'lib/main.js'),
-      name: 'MyLib',
-      fileName: (format) => `my-lib.${format}.js`
+      name: 'MyLib'
     },
     rollupOptions: {
       // make sure to externalize deps that shouldn't be bundled
@@ -126,7 +109,7 @@ module.exports = defineConfig({
       }
     }
   }
-})
+}
 ```
 
 Running `vite build` with this config uses a Rollup preset that is oriented towards shipping libraries and produces two bundle formats: `es` and `umd` (configurable via `build.lib`):

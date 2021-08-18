@@ -1,40 +1,25 @@
 import fs from 'fs-extra'
 import * as http from 'http'
 import { resolve, dirname } from 'path'
+import slash from 'slash'
 import sirv from 'sirv'
-import {
-  createServer,
-  build,
-  ViteDevServer,
-  UserConfig,
-  PluginOption,
-  ResolvedConfig
-} from 'vite'
+import { createServer, build, ViteDevServer, UserConfig } from 'vite'
 import { Page } from 'playwright-chromium'
-// eslint-disable-next-line node/no-extraneous-import
-import { RollupWatcher, RollupWatcherEvent } from 'rollup'
 
 const isBuildTest = !!process.env.VITE_TEST_BUILD
 
-export function slash(p: string): string {
-  return p.replace(/\\/g, '/')
-}
-
 // injected by the test env
 declare global {
-  // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace NodeJS {
     interface Global {
       page?: Page
       viteTestUrl?: string
-      watcher?: RollupWatcher
     }
   }
 }
 
 let server: ViteDevServer | http.Server
 let tempDir: string
-let rootDir: string
 let err: Error
 
 const logs = ((global as any).browserLogs = [])
@@ -71,35 +56,28 @@ beforeAll(async () => {
         }
       })
 
-      // when `root` dir is present, use it as vite's root
-      let testCustomRoot = resolve(tempDir, 'root')
-      rootDir = fs.existsSync(testCustomRoot) ? testCustomRoot : tempDir
-
       const testCustomServe = resolve(dirname(testPath), 'serve.js')
       if (fs.existsSync(testCustomServe)) {
         // test has custom server configuration.
         const { serve } = require(testCustomServe)
-        server = await serve(rootDir, isBuildTest)
+        server = await serve(tempDir, isBuildTest)
         return
       }
 
       const options: UserConfig = {
-        root: rootDir,
-        logLevel: 'silent',
+        root: tempDir,
+        logLevel: 'error',
         server: {
           watch: {
             // During tests we edit the files too fast and sometimes chokidar
             // misses change events, so enforce polling for consistency
             usePolling: true,
             interval: 100
-          },
-          host: true,
-          fs: {
-            strict: !isBuildTest
           }
         },
         build: {
-          // skip transpilation during tests to make it faster
+          // skip transpilation and dynamic import polyfills during tests to
+          // make it faster
           target: 'esnext'
         }
       }
@@ -109,27 +87,11 @@ beforeAll(async () => {
         server = await (await createServer(options)).listen()
         // use resolved port/base from server
         const base = server.config.base === '/' ? '' : server.config.base
-        const url =
-          (global.viteTestUrl = `http://localhost:${server.config.server.port}${base}`)
+        const url = (global.viteTestUrl = `http://localhost:${server.config.server.port}${base}`)
         await page.goto(url)
       } else {
         process.env.VITE_INLINE = 'inline-build'
-        // determine build watch
-        let resolvedConfig: ResolvedConfig
-        const resolvedPlugin: () => PluginOption = () => ({
-          name: 'vite-plugin-watcher',
-          configResolved(config) {
-            resolvedConfig = config
-          }
-        })
-        options.plugins = [resolvedPlugin()]
-        const rollupOutput = await build(options)
-        const isWatch = !!resolvedConfig!.build.watch
-        // in build watch,call startStaticServer after the build is complete
-        if (isWatch) {
-          global.watcher = rollupOutput as RollupWatcher
-          await notifyRebuildComplete(global.watcher)
-        }
+        await build(options)
         const url = (global.viteTestUrl = await startStaticServer())
         await page.goto(url)
       }
@@ -138,19 +100,14 @@ beforeAll(async () => {
     // jest doesn't exit if our setup has error here
     // https://github.com/facebook/jest/issues/2713
     err = e
-
-    // Closing the page since an error in the setup, for example a runtime error
-    // when building the playground should skip further tests.
-    // If the page remains open, a command like `await page.click(...)` produces
-    // a timeout with an exception that hides the real error in the console.
-    await page.close()
   }
-}, 30000)
+})
 
 afterAll(async () => {
-  global.page?.off('console', onConsole)
-  await global.page?.close()
-  await server?.close()
+  global.page && global.page.off('console', onConsole)
+  if (server) {
+    await server.close()
+  }
   if (err) {
     throw err
   }
@@ -158,7 +115,7 @@ afterAll(async () => {
 
 function startStaticServer(): Promise<string> {
   // check if the test project has base config
-  const configFile = resolve(rootDir, 'vite.config.js')
+  const configFile = resolve(tempDir, 'vite.config.js')
   let config: UserConfig
   try {
     config = require(configFile)
@@ -172,7 +129,7 @@ function startStaticServer(): Promise<string> {
   }
 
   // start static file server
-  const serve = sirv(resolve(rootDir, 'dist'))
+  const serve = sirv(resolve(tempDir, 'dist'))
   const httpServer = (server = http.createServer((req, res) => {
     if (req.url === '/ping') {
       res.statusCode = 200
@@ -197,22 +154,4 @@ function startStaticServer(): Promise<string> {
       resolve(`http://localhost:${port}${base}`)
     })
   })
-}
-
-/**
- * Send the rebuild complete message in build watch
- */
-export async function notifyRebuildComplete(
-  watcher: RollupWatcher
-): Promise<RollupWatcher> {
-  let callback: (event: RollupWatcherEvent) => void
-  await new Promise((resolve, reject) => {
-    callback = (event) => {
-      if (event.code === 'END') {
-        resolve(true)
-      }
-    }
-    watcher.on('event', callback)
-  })
-  return watcher.removeListener('event', callback)
 }

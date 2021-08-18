@@ -18,14 +18,6 @@ test('should remove comments in prod', async () => {
   expect(await page.innerHTML('.comments')).toBe(isBuild ? `` : `<!--hello-->`)
 })
 
-test(':slotted', async () => {
-  expect(await getColor('.slotted')).toBe('red')
-})
-
-test('scan deps from <script setup lang="ts">', async () => {
-  expect(await page.textContent('.scan')).toBe('ok')
-})
-
 describe('pre-processors', () => {
   test('pug', async () => {
     expect(await page.textContent('p.pug')).toMatch(
@@ -55,21 +47,6 @@ describe('pre-processors', () => {
       code.replace('@color: green;', '@color: blue;')
     )
     await untilUpdated(() => getColor(el), 'blue')
-  })
-
-  test('stylus + change lang', async () => {
-    expect(await getColor('p.pug-stylus')).toBe('orange')
-    editFile('PreProcessors.vue', (code) =>
-      code
-        .replace('<style lang="stylus">', '<style lang="scss">')
-        .replace('color = orange', '$color: yellow;')
-        .replace('color: color', '{ color: $color; }')
-    )
-    await untilUpdated(() => getColor('p.pug-stylus'), 'yellow')
-    editFile('PreProcessors.vue', (code) =>
-      code.replace('$color: yellow;', '$color: orange;')
-    )
-    await untilUpdated(() => getColor('p.pug-stylus'), 'orange')
   })
 })
 
@@ -156,11 +133,6 @@ describe('hmr', () => {
     )
     await untilUpdated(() => page.textContent('.hmr-inc'), 'count is 100')
   })
-
-  test('should re-render when template is emptied', async () => {
-    editFile('Hmr.vue', () => '')
-    await untilUpdated(() => page.innerHTML('.hmr-block'), '<!---->')
-  })
 })
 
 describe('src imports', () => {
@@ -195,11 +167,5 @@ describe('src imports', () => {
 describe('custom blocks', () => {
   test('should work', async () => {
     expect(await page.textContent('.custom-block')).toMatch('こんにちは')
-  })
-})
-
-describe('async component', () => {
-  test('should work', async () => {
-    expect(await page.textContent('.async-component')).toMatch('ab == ab')
   })
 })

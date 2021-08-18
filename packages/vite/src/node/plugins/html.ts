@@ -8,8 +8,7 @@ import {
   cleanUrl,
   isExternalUrl,
   isDataUrl,
-  generateCodeFrame,
-  processSrcSet
+  generateCodeFrame
 } from '../utils'
 import { ResolvedConfig } from '../config'
 import MagicString from 'magic-string'
@@ -20,7 +19,7 @@ import {
   getAssetFilename
 } from './asset'
 import { isCSSRequest, chunkToEmittedCssFileMap } from './css'
-import { modulePreloadPolyfillId } from './modulePreloadPolyfill'
+import { polyfillId } from './dynamicImportPolyfill'
 import {
   AttributeNode,
   NodeTransform,
@@ -29,11 +28,10 @@ import {
 } from '@vue/compiler-dom'
 
 const htmlProxyRE = /\?html-proxy&index=(\d+)\.js$/
-export const isHTMLProxy = (id: string): boolean => htmlProxyRE.test(id)
+export const isHTMLProxy = (id: string) => htmlProxyRE.test(id)
 
 const htmlCommentRE = /<!--[\s\S]*?-->/g
-const scriptModuleRE =
-  /(<script\b[^>]*type\s*=\s*(?:"module"|'module')[^>]*>)(.*?)<\/script>/gims
+const scriptModuleRE = /(<script\b[^>]*type\s*=\s*(?:"module"|'module')[^>]*>)(.*?)<\/script>/gims
 
 export function htmlInlineScriptProxyPlugin(): Plugin {
   return {
@@ -51,7 +49,7 @@ export function htmlInlineScriptProxyPlugin(): Plugin {
         const index = Number(proxyMatch[1])
         const file = cleanUrl(id)
         const html = fs.readFileSync(file, 'utf-8').replace(htmlCommentRE, '')
-        let match: RegExpExecArray | null | undefined
+        let match
         scriptModuleRE.lastIndex = 0
         for (let i = 0; i <= index; i++) {
           match = scriptModuleRE.exec(html)
@@ -70,8 +68,8 @@ export function htmlInlineScriptProxyPlugin(): Plugin {
 export const assetAttrsConfig: Record<string, string[]> = {
   link: ['href'],
   video: ['src', 'poster'],
-  source: ['src', 'srcset'],
-  img: ['src', 'srcset'],
+  source: ['src'],
+  img: ['src'],
   image: ['xlink:href', 'href'],
   use: ['xlink:href', 'href']
 }
@@ -80,7 +78,7 @@ export async function traverseHtml(
   html: string,
   filePath: string,
   visitor: NodeTransform
-): Promise<void> {
+) {
   // lazy load compiler
   const { parse, transform } = await import('@vue/compiler-dom')
   // @vue/compiler-core doesn't like lowercase doctypes
@@ -102,10 +100,7 @@ export async function traverseHtml(
   }
 }
 
-export function getScriptInfo(node: ElementNode): {
-  src: AttributeNode | undefined
-  isModule: boolean
-} {
+export function getScriptInfo(node: ElementNode) {
   let src: AttributeNode | undefined
   let isModule = false
   for (let i = 0; i < node.props.length; i++) {
@@ -141,10 +136,7 @@ export function buildHtmlPlugin(config: ResolvedConfig): Plugin {
   const [preHooks, postHooks] = resolveHtmlTransforms(config.plugins)
   const processedHtml = new Map<string, string>()
   const isExcludedUrl = (url: string) =>
-    url.startsWith('#') ||
-    isExternalUrl(url) ||
-    isDataUrl(url) ||
-    checkPublicFile(url, config)
+    isExternalUrl(url) || isDataUrl(url) || checkPublicFile(url, config)
 
   return {
     name: 'vite:build-html',
@@ -153,10 +145,7 @@ export function buildHtmlPlugin(config: ResolvedConfig): Plugin {
       if (id.endsWith('.html')) {
         const publicPath = `/${slash(path.relative(config.root, id))}`
         // pre-transform
-        html = await applyHtmlTransforms(html, preHooks, {
-          path: publicPath,
-          filename: id
-        })
+        html = await applyHtmlTransforms(html, publicPath, id, preHooks)
 
         let js = ''
         const s = new MagicString(html)
@@ -241,13 +230,7 @@ export function buildHtmlPlugin(config: ResolvedConfig): Plugin {
         for (const attr of assetUrls) {
           const value = attr.value!
           try {
-            const url =
-              attr.name === 'srcset'
-                ? await processSrcSet(value.content, ({ url }) =>
-                    urlToBuiltUrl(url, id, config, this)
-                  )
-                : await urlToBuiltUrl(value.content, id, config, this)
-
+            const url = await urlToBuiltUrl(value.content, id, config, this)
             s.overwrite(
               value.loc.start.offset,
               value.loc.end.offset,
@@ -264,9 +247,9 @@ export function buildHtmlPlugin(config: ResolvedConfig): Plugin {
 
         processedHtml.set(id, s.toString())
 
-        // inject module preload polyfill
-        if (config.build.polyfillModulePreload) {
-          js = `import "${modulePreloadPolyfillId}";\n${js}`
+        // inject dynamic import polyfill
+        if (config.build.polyfillDynamicImport) {
+          js = `import "${polyfillId}";\n${js}`
         }
 
         return js
@@ -274,7 +257,6 @@ export function buildHtmlPlugin(config: ResolvedConfig): Plugin {
     },
 
     async generateBundle(_, bundle) {
-      const analyzedChunk: Map<OutputChunk, number> = new Map()
       const getPreloadLinksForChunk = (
         chunk: OutputChunk,
         seen: Set<string> = new Set()
@@ -282,7 +264,7 @@ export function buildHtmlPlugin(config: ResolvedConfig): Plugin {
         const tags: HtmlTagDescriptor[] = []
         chunk.imports.forEach((file) => {
           const importee = bundle[file]
-          if (importee?.type === 'chunk' && !seen.has(file)) {
+          if (importee && importee.type === 'chunk' && !seen.has(file)) {
             seen.add(file)
             tags.push({
               tag: 'link',
@@ -302,16 +284,6 @@ export function buildHtmlPlugin(config: ResolvedConfig): Plugin {
         seen: Set<string> = new Set()
       ): HtmlTagDescriptor[] => {
         const tags: HtmlTagDescriptor[] = []
-        if (!analyzedChunk.has(chunk)) {
-          analyzedChunk.set(chunk, 1)
-          chunk.imports.forEach((file) => {
-            const importee = bundle[file]
-            if (importee?.type === 'chunk') {
-              tags.push(...getCssTagsForChunk(importee, seen))
-            }
-          })
-        }
-
         const cssFiles = chunkToEmittedCssFileMap.get(chunk)
         if (cssFiles) {
           cssFiles.forEach((file) => {
@@ -327,6 +299,12 @@ export function buildHtmlPlugin(config: ResolvedConfig): Plugin {
             }
           })
         }
+        chunk.imports.forEach((file) => {
+          const importee = bundle[file]
+          if (importee && importee.type === 'chunk') {
+            tags.push(...getCssTagsForChunk(importee, seen))
+          }
+        })
         return tags
       }
 
@@ -383,12 +361,15 @@ export function buildHtmlPlugin(config: ResolvedConfig): Plugin {
         }
 
         const shortEmitName = path.posix.relative(config.root, id)
-        result = await applyHtmlTransforms(result, postHooks, {
-          path: '/' + shortEmitName,
-          filename: id,
+        result = await applyHtmlTransforms(
+          result,
+          '/' + shortEmitName,
+          id,
+          postHooks,
+          undefined,
           bundle,
           chunk
-        })
+        )
 
         this.emitFile({
           type: 'asset',
@@ -430,7 +411,6 @@ export interface IndexHtmlTransformContext {
   server?: ViteDevServer
   bundle?: OutputBundle
   chunk?: OutputChunk
-  originalUrl?: string
 }
 
 export type IndexHtmlTransformHook = (
@@ -445,9 +425,7 @@ export type IndexHtmlTransform =
       transform: IndexHtmlTransformHook
     }
 
-export function resolveHtmlTransforms(
-  plugins: readonly Plugin[]
-): [IndexHtmlTransformHook[], IndexHtmlTransformHook[]] {
+export function resolveHtmlTransforms(plugins: readonly Plugin[]) {
   const preHooks: IndexHtmlTransformHook[] = []
   const postHooks: IndexHtmlTransformHook[] = []
 
@@ -469,13 +447,25 @@ export function resolveHtmlTransforms(
 
 export async function applyHtmlTransforms(
   html: string,
+  path: string,
+  filename: string,
   hooks: IndexHtmlTransformHook[],
-  ctx: IndexHtmlTransformContext
+  server?: ViteDevServer,
+  bundle?: OutputBundle,
+  chunk?: OutputChunk
 ): Promise<string> {
   const headTags: HtmlTagDescriptor[] = []
   const headPrependTags: HtmlTagDescriptor[] = []
   const bodyTags: HtmlTagDescriptor[] = []
   const bodyPrependTags: HtmlTagDescriptor[] = []
+
+  const ctx: IndexHtmlTransformContext = {
+    path,
+    filename,
+    server,
+    bundle,
+    chunk
+  }
 
   for (const hook of hooks) {
     const res = await hook(html, ctx)
@@ -485,7 +475,7 @@ export async function applyHtmlTransforms(
     if (typeof res === 'string') {
       html = res
     } else {
-      let tags: HtmlTagDescriptor[]
+      let tags
       if (Array.isArray(res)) {
         tags = res
       } else {
@@ -545,7 +535,7 @@ function injectToHead(
   } else {
     // inject before head close
     if (headInjectRE.test(html)) {
-      return html.replace(headInjectRE, `${tagsHtml}\n  $&`)
+      return html.replace(headInjectRE, `${tagsHtml}\n$&`)
     }
   }
   // if no <head> tag is present, just prepend
@@ -553,7 +543,7 @@ function injectToHead(
 }
 
 const bodyInjectRE = /<\/body>/
-const bodyPrependInjectRE = /<body[^>]*>/
+const bodyPrependInjectRE = /<body>/
 function injectToBody(
   html: string,
   tags: HtmlTagDescriptor[],
@@ -592,7 +582,7 @@ function serializeTags(tags: HtmlTagDescriptor['children']): string {
   if (typeof tags === 'string') {
     return tags
   } else if (tags) {
-    return `  ${tags.map(serializeTag).join('\n    ')}`
+    return tags.map(serializeTag).join(`\n  `)
   }
   return ''
 }

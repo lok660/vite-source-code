@@ -88,16 +88,9 @@ export async function handleHotUpdate({
     const next = nextStyles[i]
     if (!prev || !isEqualBlock(prev, next)) {
       didUpdateStyle = true
-      const mod = modules.find(
-        (m) =>
-          m.url.includes(`type=style&index=${i}`) &&
-          m.url.endsWith(`.${next.lang || 'css'}`)
-      )
+      const mod = modules.find((m) => m.url.includes(`type=style&index=${i}`))
       if (mod) {
         affectedModules.add(mod)
-        if (mod.url.includes('&inline')) {
-          affectedModules.add(mainModule)
-        }
       } else {
         // new style block - force reload
         affectedModules.add(mainModule)
@@ -134,7 +127,7 @@ export async function handleHotUpdate({
     }
   }
 
-  const updateType = []
+  let updateType = []
   if (needRerender) {
     updateType.push(`template`)
     // template is inlined into main, add main module instead
@@ -151,7 +144,7 @@ export async function handleHotUpdate({
   return [...affectedModules].filter(Boolean) as ModuleNode[]
 }
 
-export function isEqualBlock(a: SFCBlock | null, b: SFCBlock | null): boolean {
+function isEqualBlock(a: SFCBlock | null, b: SFCBlock | null) {
   if (!a && !b) return true
   if (!a || !b) return false
   // src imports will trigger their own updates
@@ -168,7 +161,7 @@ export function isEqualBlock(a: SFCBlock | null, b: SFCBlock | null): boolean {
 export function isOnlyTemplateChanged(
   prev: SFCDescriptor,
   next: SFCDescriptor
-): boolean {
+) {
   return (
     isEqualBlock(prev.script, next.script) &&
     isEqualBlock(prev.scriptSetup, next.scriptSetup) &&

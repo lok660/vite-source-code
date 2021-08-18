@@ -4,13 +4,13 @@ Vite's JavaScript APIs are fully typed, and it's recommended to use TypeScript o
 
 ## `createServer`
 
-**Type Signature:**
+**Type Signature**
 
 ```ts
 async function createServer(inlineConfig?: InlineConfig): Promise<ViteDevServer>
 ```
 
-**Example Usage:**
+**Example Usage**
 
 ```js
 const { createServer } = require('vite')
@@ -33,41 +33,40 @@ const { createServer } = require('vite')
 The `InlineConfig` interface extends `UserConfig` with additional properties:
 
 - `configFile`: specify config file to use. If not set, Vite will try to automatically resolve one from project root. Set to `false` to disable auto resolving.
-- `envFile`: Set to `false` to disable `.env` files.
 
 ## `ViteDevServer`
 
 ```ts
 interface ViteDevServer {
   /**
-   * The resolved vite config object.
+   * The resolved vite config object
    */
   config: ResolvedConfig
   /**
    * A connect app instance
    * - Can be used to attach custom middlewares to the dev server.
    * - Can also be used as the handler function of a custom http server
-   *   or as a middleware in any connect-style Node.js frameworks.
+   *   or as a middleware in any connect-style Node.js frameworks
    *
    * https://github.com/senchalabs/connect#use-middleware
    */
   middlewares: Connect.Server
   /**
-   * Native Node http server instance.
-   * Will be null in middleware mode.
+   * native Node http server instance
+   * will be null in middleware mode
    */
   httpServer: http.Server | null
   /**
-   * Chokidar watcher instance.
+   * chokidar watcher instance
    * https://github.com/paulmillr/chokidar#api
    */
   watcher: FSWatcher
   /**
-   * Web socket server with `send(payload)` method.
+   * web socket server with `send(payload)` method
    */
   ws: WebSocketServer
   /**
-   * Rollup plugin container that can run plugin hooks on a given file.
+   * Rollup plugin container that can run plugin hooks on a given file
    */
   pluginContainer: PluginContainer
   /**
@@ -105,7 +104,7 @@ interface ViteDevServer {
     options?: { isolated?: boolean }
   ): Promise<Record<string, any>>
   /**
-   * Fix ssr error stacktrace.
+   * Fix ssr error stacktrace
    */
   ssrFixStacktrace(e: Error): void
   /**
@@ -121,7 +120,7 @@ interface ViteDevServer {
 
 ## `build`
 
-**Type Signature:**
+**Type Signature**
 
 ```ts
 async function build(
@@ -129,7 +128,7 @@ async function build(
 ): Promise<RollupOutput | RollupOutput[]>
 ```
 
-**Example Usage:**
+**Example Usage**
 
 ```js
 const path = require('path')
@@ -150,7 +149,7 @@ const { build } = require('vite')
 
 ## `resolveConfig`
 
-**Type Signature:**
+**Type Signature**
 
 ```ts
 async function resolveConfig(

@@ -16,6 +16,7 @@ Due to a more integrated build process, Vite supports a wide range of features t
 - [Library Mode](./build#library-mode)
 - [Automatic CSS code-splitting](./features#css-code-splitting)
 - [Optimized async chunk loading](./features#async-chunk-loading-optimization)
+- [Automatic dynamic import polyfill](./features#dynamic-import-polyfill)
 - Official [legacy mode plugin](https://github.com/vitejs/vite/tree/main/packages/plugin-legacy) that generates dual modern/legacy bundles and auto delivers the right bundle based on browser support.
 
 **Faster Dependency Pre-Bundling**
@@ -38,7 +39,7 @@ Vite was initially created to serve as the future foundation of [Vue.js](https:/
 
 [WMR](https://github.com/preactjs/wmr) by the Preact team provides a similar feature set, and Vite 2.0's support for Rollup's plugin interface is inspired by it.
 
-WMR is mainly designed for [Preact](https://preactjs.com/) projects, and offers more integrated features such as pre-rendering. In terms of scope, it's closer to a Preact meta framework, with the same emphasis on compact size as Preact itself. If you are using Preact, WMR is likely going to offer a more fine-tuned experience.
+WMR is mainly designed for [Preact](https://preactjs.com/) projects, and offers more integrated features such as pre-rendering. In terms of scope, it's closer to a Preact meta framework, with the same emphasis on compact size as Preact itself. If you are using Preact, WMR is likely going to offer a more fine-tuned experience. However, it's unlikely for WMR to prioritize support for other frameworks.
 
 ## @web/dev-server
 

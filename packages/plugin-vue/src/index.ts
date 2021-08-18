@@ -43,17 +43,6 @@ export interface Options {
   script?: Partial<SFCScriptCompileOptions>
   template?: Partial<SFCTemplateCompileOptions>
   style?: Partial<SFCStyleCompileOptions>
-
-  /**
-   * Transform Vue SFCs into custom elements.
-   * **requires Vue \>= 3.2.0 & Vite \>= 2.4.4**
-   * - `true`: all `*.vue` imports are converted into custom elements
-   * - `string | RegExp`: matched files are converted into custom elements
-   *
-   * @default /\.ce\.vue$/
-   */
-  customElement?: boolean | string | RegExp | (string | RegExp)[]
-
   /**
    * @deprecated the plugin now auto-detects whether it's being invoked for ssr.
    */
@@ -77,11 +66,6 @@ export default function vuePlugin(rawOptions: Options = {}): Plugin {
     rawOptions.exclude
   )
 
-  const customElementFilter =
-    typeof rawOptions.customElement === 'boolean'
-      ? () => rawOptions.customElement as boolean
-      : createFilter(rawOptions.customElement || /\.ce\.vue$/)
-
   return {
     name: 'vite:vue',
 
@@ -92,12 +76,11 @@ export default function vuePlugin(rawOptions: Options = {}): Plugin {
       return handleHotUpdate(ctx)
     },
 
-    config(config) {
+    config() {
       return {
         define: {
           __VUE_OPTIONS_API__: true,
-          __VUE_PROD_DEVTOOLS__: false,
-          ...config.define
+          __VUE_PROD_DEVTOOLS__: false
         },
         ssr: {
           external: ['vue', '@vue/server-renderer']
@@ -118,7 +101,7 @@ export default function vuePlugin(rawOptions: Options = {}): Plugin {
     },
 
     async resolveId(id, importer) {
-      // serve sub-part requests (*?vue) as virtual modules
+      // serve subpart requests (*?vue) as virtual modules
       if (parseVueRequest(id).query.vue) {
         return id
       }
@@ -126,7 +109,7 @@ export default function vuePlugin(rawOptions: Options = {}): Plugin {
 
     load(id, ssr = !!options.ssr) {
       const { filename, query } = parseVueRequest(id)
-      // select corresponding block for sub-part virtual modules
+      // select corresponding block for subpart virtual modules
       if (query.vue) {
         if (query.src) {
           return fs.readFileSync(filename, 'utf-8')
@@ -160,14 +143,7 @@ export default function vuePlugin(rawOptions: Options = {}): Plugin {
 
       if (!query.vue) {
         // main request
-        return transformMain(
-          code,
-          filename,
-          options,
-          this,
-          ssr,
-          customElementFilter(filename)
-        )
+        return transformMain(code, filename, options, this, ssr)
       } else {
         // sub block request
         const descriptor = getDescriptor(filename)!

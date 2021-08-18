@@ -1,4 +1,4 @@
-import { getColor, isBuild } from '../../testUtils'
+import { getColor } from '../../testUtils'
 
 test('default + named imports from cjs dep (react)', async () => {
   expect(await page.textContent('.cjs button')).toBe('count is 0')
@@ -26,18 +26,6 @@ test('dynamic named imports from webpacked cjs (phoenix)', async () => {
 
 test('dynamic default import from webpacked cjs (clipboard)', async () => {
   expect(await page.textContent('.cjs-dynamic-clipboard')).toBe('ok')
-})
-
-test('dynamic default import from cjs (cjs-dynamic-dep-cjs-compiled-from-esm)', async () => {
-  expect(await page.textContent('.cjs-dynamic-dep-cjs-compiled-from-esm')).toBe(
-    'ok'
-  )
-})
-
-test('dynamic default import from cjs (cjs-dynamic-dep-cjs-compiled-from-cjs)', async () => {
-  expect(await page.textContent('.cjs-dynamic-dep-cjs-compiled-from-cjs')).toBe(
-    'ok'
-  )
 })
 
 test('dedupe', async () => {
@@ -72,14 +60,4 @@ test('dep w/ non-js files handled via plugin', async () => {
 
 test('vue + vuex', async () => {
   expect(await page.textContent('.vue')).toMatch(`[success]`)
-})
-
-test('esbuild-plugin', async () => {
-  expect(await page.textContent('.esbuild-plugin')).toMatch(
-    isBuild ? `Hello from a package` : `Hello from an esbuild plugin`
-  )
-})
-
-test('import from hidden dir', async () => {
-  expect(await page.textContent('.hidden-dir')).toBe('hello!')
 })

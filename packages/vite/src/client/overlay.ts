@@ -151,13 +151,13 @@ export class ErrorOverlay extends HTMLElement {
     })
   }
 
-  text(selector: string, text: string, linkFiles = false): void {
+  text(selector: string, text: string, linkFiles = false) {
     const el = this.root.querySelector(selector)!
     if (!linkFiles) {
       el.textContent = text
     } else {
       let curIndex = 0
-      let match: RegExpExecArray | null
+      let match
       while ((match = fileRE.exec(text))) {
         const { 0: file, index } = match
         if (index != null) {
@@ -176,10 +176,10 @@ export class ErrorOverlay extends HTMLElement {
     }
   }
 
-  close(): void {
+  close() {
     this.parentNode?.removeChild(this)
   }
 }
 
 export const overlayId = 'vite-error-overlay'
-!customElements.get(overlayId) && customElements.define(overlayId, ErrorOverlay)
+customElements.define(overlayId, ErrorOverlay)

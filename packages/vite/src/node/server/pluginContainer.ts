@@ -1,6 +1,6 @@
 /**
  * This file is refactored into TypeScript based on
- * https://github.com/preactjs/wmr/blob/main/packages/wmr/src/lib/rollup-plugin-container.js
+ * https://github.com/preactjs/wmr/blob/master/src/lib/rollup-plugin-container.js
  */
 
 /**
@@ -46,29 +46,25 @@ import {
   SourceDescription,
   EmittedFile,
   SourceMap,
-  RollupError,
-  TransformResult
+  RollupError
 } from 'rollup'
 import * as acorn from 'acorn'
 import acornClassFields from 'acorn-class-fields'
 import acornNumericSeparator from 'acorn-numeric-separator'
 import acornStaticClassFeatures from 'acorn-static-class-features'
-import { RawSourceMap } from '@ampproject/remapping/dist/types/types'
-import { combineSourcemaps } from '../utils'
+import merge from 'merge-source-map'
 import MagicString from 'magic-string'
 import { FSWatcher } from 'chokidar'
 import {
   createDebugger,
   ensureWatchedFile,
   generateCodeFrame,
-  isObject,
   isExternalUrl,
   normalizePath,
   numberToPos,
   prettifyUrl,
   timeFrom
 } from '../utils'
-import { FS_PREFIX } from '../constants'
 import chalk from 'chalk'
 import { ResolvedConfig } from '../config'
 import { buildErrorMessage } from './middlewares/error'
@@ -171,7 +167,6 @@ export async function createPluginContainer(
     _activeId: string | null = null
     _activeCode: string | null = null
     _resolveSkips?: Set<Plugin>
-    _addedImports: Set<string> | null = null
 
     constructor(initialPlugin?: Plugin) {
       this._activePlugin = initialPlugin || null
@@ -219,7 +214,6 @@ export async function createPluginContainer(
 
     addWatchFile(id: string) {
       watchFiles.add(id)
-      ;(this._addedImports || (this._addedImports = new Set())).add(id)
       if (watcher) ensureWatchedFile(watcher, id, root)
     }
 
@@ -296,9 +290,7 @@ export async function createPluginContainer(
           let code = ctx._activeCode
           if (err.loc.file) {
             err.id = normalizePath(err.loc.file)
-            try {
-              code = fs.readFileSync(err.loc.file, 'utf-8')
-            } catch {}
+            code = fs.readFileSync(err.loc.file, 'utf-8')
           }
           err.frame = generateCodeFrame(code, err.loc)
         }
@@ -343,13 +335,13 @@ export async function createPluginContainer(
         if (!combinedMap) {
           combinedMap = m as SourceMap
         } else {
-          combinedMap = combineSourcemaps(this.filename, [
-            {
-              ...(m as RawSourceMap),
-              sourcesContent: combinedMap.sourcesContent
-            },
-            combinedMap as RawSourceMap
-          ]) as SourceMap
+          // merge-source-map will overwrite original sources if newMap also has
+          // sourcesContent
+          // @ts-ignore
+          combinedMap = merge(combinedMap, {
+            ...(m as SourceMap),
+            sourcesContent: combinedMap.sourcesContent
+          })
         }
       }
       if (!combinedMap) {
@@ -454,7 +446,7 @@ export async function createPluginContainer(
         break
       }
 
-      if (isDebug && rawId !== id && !rawId.startsWith(FS_PREFIX)) {
+      if (isDebug && rawId !== id && !rawId.startsWith('/@fs/')) {
         const key = rawId + id
         // avoid spamming
         if (!seenResolves[key]) {
@@ -496,7 +488,7 @@ export async function createPluginContainer(
         ctx._activeId = id
         ctx._activeCode = code
         const start = isDebug ? Date.now() : 0
-        let result: TransformResult | string | undefined
+        let result
         try {
           result = await plugin.transform.call(ctx as any, code, id, ssr)
         } catch (e) {
@@ -509,7 +501,7 @@ export async function createPluginContainer(
             plugin.name,
             prettifyUrl(id, root)
           )
-        if (isObject(result)) {
+        if (typeof result === 'object') {
           code = result.code || ''
           if (result.map) ctx.sourcemapChain.push(result.map)
         } else {

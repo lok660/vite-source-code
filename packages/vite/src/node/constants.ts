@@ -15,11 +15,11 @@ export const DEFAULT_EXTENSIONS = [
   '.json'
 ]
 
-export const JS_TYPES_RE = /\.(?:j|t)sx?$|\.mjs$/
+export const JS_TYPES_RE = /\.(j|t)sx?$|\.mjs$/
 
-export const OPTIMIZABLE_ENTRY_RE = /\.(?:m?js|ts)$/
+export const SPECIAL_QUERY_RE = /[\?&](worker|raw|url)\b/
 
-export const SPECIAL_QUERY_RE = /[\?&](?:worker|sharedworker|raw|url)\b/
+export const DEP_CACHE_DIR = `.vite`
 
 /**
  * Prefix for resolved fs paths, since windows paths may not be valid as URLs.
@@ -40,15 +40,12 @@ export const NULL_BYTE_PLACEHOLDER = `__x00__`
 
 export const CLIENT_PUBLIC_PATH = `/@vite/client`
 export const ENV_PUBLIC_PATH = `/@vite/env`
-// eslint-disable-next-line node/no-missing-require
-export const CLIENT_ENTRY = require.resolve('vite/dist/client/client.mjs')
-// eslint-disable-next-line node/no-missing-require
-export const ENV_ENTRY = require.resolve('vite/dist/client/env.mjs')
+// eslint-disable-next-line
+export const CLIENT_ENTRY = require.resolve('vite/dist/client/client.js')
+// eslint-disable-next-line
+export const ENV_ENTRY = require.resolve('vite/dist/client/env.js')
 export const CLIENT_DIR = path.dirname(CLIENT_ENTRY)
 
-// ** READ THIS ** before editing `KNOWN_ASSET_TYPES`.
-//   If you add an asset to `KNOWN_ASSET_TYPES`, make sure to also add it
-//   to the TypeScript declaration file `packages/vite/client.d.ts`.
 export const KNOWN_ASSET_TYPES = [
   // images
   'png',
@@ -75,8 +72,7 @@ export const KNOWN_ASSET_TYPES = [
   'otf',
 
   // other
-  'wasm',
-  'webmanifest'
+  'wasm'
 ]
 
 export const DEFAULT_ASSETS_RE = new RegExp(

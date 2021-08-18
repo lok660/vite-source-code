@@ -1,7 +1,7 @@
 // @ts-check
 const fs = require('fs')
 const { transformSync, ParserOptions } = require('@babel/core')
-const { createFilter } = require('@rollup/pluginutils')
+
 const runtimePublicPath = '/@react-refresh'
 const runtimeFilePath = require.resolve(
   'react-refresh/cjs/react-refresh-runtime.development.js'
@@ -37,10 +37,6 @@ window.__vite_plugin_react_preamble_installed__ = true
 function reactRefreshPlugin(opts) {
   let shouldSkip = false
   let base = '/'
-  const filter = createFilter(
-    (opts && opts.include) || /\.(t|j)sx?$/,
-    (opts && opts.exclude) || /node_modules/
-  )
 
   return {
     name: 'react-refresh',
@@ -69,7 +65,7 @@ function reactRefreshPlugin(opts) {
         return
       }
 
-      if (!filter(id)) {
+      if (!/\.(t|j)sx?$/.test(id) || id.includes('node_modules')) {
         return
       }
 
@@ -106,16 +102,12 @@ function reactRefreshPlugin(opts) {
 
       const isReasonReact = id.endsWith('.bs.js')
       const result = transformSync(code, {
-        babelrc: false,
         configFile: false,
         filename: id,
         parserOpts: {
           sourceType: 'module',
           allowAwaitOutsideFunction: true,
           plugins: parserPlugins
-        },
-        generatorOpts: {
-          decoratorsBeforeExport: true
         },
         plugins: [
           require('@babel/plugin-transform-react-jsx-self'),
@@ -140,7 +132,7 @@ function reactRefreshPlugin(opts) {
 
   if (!window.__vite_plugin_react_preamble_installed__) {
     throw new Error(
-      "@vitejs/plugin-react-refresh can't detect preamble. Something is wrong. " +
+      "vite-plugin-react can't detect preamble. Something is wrong. " +
       "See https://github.com/vitejs/vite-plugin-react/pull/11#discussion_r430879201"
     );
   }
@@ -204,33 +196,22 @@ function isRefreshBoundary(ast) {
       return true
     }
     const { declaration, specifiers } = node
-    if (declaration) {
-      if (declaration.type === 'VariableDeclaration') {
-        return declaration.declarations.every((variable) =>
-          isComponentLikeIdentifier(variable.id)
-        )
-      }
-      if (declaration.type === 'FunctionDeclaration') {
-        return isComponentLikeIdentifier(declaration.id)
-      }
+    if (declaration && declaration.type === 'VariableDeclaration') {
+      return declaration.declarations.every(
+        ({ id }) => id.type === 'Identifier' && isComponentishName(id.name)
+      )
     }
-    return specifiers.every((spec) => {
-      return isComponentLikeIdentifier(spec.exported)
-    })
+    return specifiers.every(
+      ({ exported }) =>
+        exported.type === 'Identifier' && isComponentishName(exported.name)
+    )
   })
-}
-
-/**
- * @param {import('@babel/types').Node} node
- */
-function isComponentLikeIdentifier(node) {
-  return node.type === 'Identifier' && isComponentLikeName(node.name)
 }
 
 /**
  * @param {string} name
  */
-function isComponentLikeName(name) {
+function isComponentishName(name) {
   return typeof name === 'string' && name[0] >= 'A' && name[0] <= 'Z'
 }
 

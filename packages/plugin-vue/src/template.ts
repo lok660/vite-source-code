@@ -10,7 +10,6 @@ import { ResolvedOptions } from '.'
 import { getResolvedScript } from './script'
 import { createRollupError } from './utils/error'
 
-// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
 export function transformTemplateAsModule(
   code: string,
   descriptor: SFCDescriptor,
@@ -21,12 +20,7 @@ export function transformTemplateAsModule(
   const result = compile(code, descriptor, options, pluginContext, ssr)
 
   let returnCode = result.code
-  if (
-    options.devServer &&
-    options.devServer.config.server.hmr !== false &&
-    !ssr &&
-    !options.isProduction
-  ) {
+  if (options.devServer && !ssr && !options.isProduction) {
     returnCode += `\nimport.meta.hot.accept(({ render }) => {
       __VUE_HMR_RUNTIME__.rerender(${JSON.stringify(descriptor.id)}, render)
     })`
@@ -41,7 +35,6 @@ export function transformTemplateAsModule(
 /**
  * transform the template directly in the main SFC module
  */
-// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
 export function transformTemplateInMain(
   code: string,
   descriptor: SFCDescriptor,
@@ -59,7 +52,6 @@ export function transformTemplateInMain(
   }
 }
 
-// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
 export function compile(
   code: string,
   descriptor: SFCDescriptor,
@@ -109,8 +101,7 @@ export function resolveTemplateCompilerOptions(
   const { id, filename, cssVars } = descriptor
 
   let transformAssetUrls = options.template?.transformAssetUrls
-  // @vue/compiler-sfc/dist/compiler-sfc.d.ts should export `AssetURLOptions`
-  let assetUrlOptions //: AssetURLOptions | undefined
+  let assetUrlOptions
   if (options.devServer) {
     // during dev, inject vite base so that @vue/compiler-sfc can transform
     // relative paths directly to absolute paths without incurring an extra import
@@ -161,7 +152,6 @@ export function resolveTemplateCompilerOptions(
     id,
     filename,
     scoped: hasScoped,
-    slotted: descriptor.slotted,
     isProd: options.isProduction,
     inMap: block.src ? undefined : block.map,
     ssr,

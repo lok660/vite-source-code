@@ -4,13 +4,9 @@
 
 import fs from 'fs'
 import path from 'path'
+import slash from 'slash'
 import colors from 'css-color-names'
 import { ElementHandle } from 'playwright-chromium'
-import type { Manifest } from 'vite'
-
-export function slash(p: string): string {
-  return p.replace(/\\/g, '/')
-}
 
 export const isBuild = !!process.env.VITE_TEST_BUILD
 
@@ -24,8 +20,8 @@ Object.keys(colors).forEach((color) => {
 })
 
 function componentToHex(c: number): string {
-  const hex = c.toString(16)
-  return hex.length === 1 ? '0' + hex : hex
+  var hex = c.toString(16)
+  return hex.length == 1 ? '0' + hex : hex
 }
 
 function rgbToHex(rgb: string): string {
@@ -52,47 +48,39 @@ async function toEl(el: string | ElementHandle): Promise<ElementHandle> {
   return el
 }
 
-export async function getColor(el: string | ElementHandle): Promise<string> {
+export async function getColor(el: string | ElementHandle) {
   el = await toEl(el)
   const rgb = await el.evaluate((el) => getComputedStyle(el as Element).color)
   return hexToNameMap[rgbToHex(rgb)] || rgb
 }
 
-export async function getBg(el: string | ElementHandle): Promise<string> {
+export async function getBg(el: string | ElementHandle) {
   el = await toEl(el)
   return el.evaluate((el) => getComputedStyle(el as Element).backgroundImage)
 }
 
-export function readFile(filename: string): string {
-  return fs.readFileSync(path.resolve(testDir, filename), 'utf-8')
-}
-
-export function editFile(
-  filename: string,
-  replacer: (str: string) => string,
-  runInBuild: boolean = false
-): void {
-  if (isBuild && !runInBuild) return
+export function editFile(filename: string, replacer: (str: string) => string) {
+  if (isBuild) return
   filename = path.resolve(testDir, filename)
   const content = fs.readFileSync(filename, 'utf-8')
   const modified = replacer(content)
   fs.writeFileSync(filename, modified)
 }
 
-export function addFile(filename: string, content: string): void {
+export function addFile(filename: string, content: string) {
   fs.writeFileSync(path.resolve(testDir, filename), content)
 }
 
-export function removeFile(filename: string): void {
+export function removeFile(filename: string) {
   fs.unlinkSync(path.resolve(testDir, filename))
 }
 
-export function listAssets(base = ''): string[] {
+export function listAssets(base = '') {
   const assetsDir = path.join(testDir, 'dist', base, 'assets')
   return fs.readdirSync(assetsDir)
 }
 
-export function findAssetFile(match: string | RegExp, base = ''): string {
+export function findAssetFile(match: string | RegExp, base = '') {
   const assetsDir = path.join(testDir, 'dist', base, 'assets')
   const files = fs.readdirSync(assetsDir)
   const file = files.find((file) => {
@@ -101,7 +89,7 @@ export function findAssetFile(match: string | RegExp, base = ''): string {
   return file ? fs.readFileSync(path.resolve(assetsDir, file), 'utf-8') : ''
 }
 
-export function readManifest(base = ''): Manifest {
+export function readManifest(base = '') {
   return JSON.parse(
     fs.readFileSync(path.join(testDir, 'dist', base, 'manifest.json'), 'utf-8')
   )
@@ -112,10 +100,9 @@ export function readManifest(base = ''): Manifest {
  */
 export async function untilUpdated(
   poll: () => string | Promise<string>,
-  expected: string,
-  runInBuild = false
-): Promise<void> {
-  if (isBuild && !runInBuild) return
+  expected: string
+) {
+  if (isBuild) return
   const maxTries = process.env.CI ? 100 : 50
   for (let tries = 0; tries < maxTries; tries++) {
     const actual = (await poll()) || ''
@@ -127,8 +114,3 @@ export async function untilUpdated(
     }
   }
 }
-
-/**
- * Send the rebuild complete message in build watch
- */
-export { notifyRebuildComplete } from '../../scripts/jestPerTestSetup'
