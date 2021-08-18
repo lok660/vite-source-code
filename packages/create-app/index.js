@@ -10,7 +10,7 @@ const alternativeCommands = {
   unknown: 'npm init vite'
 }
 
-function getPackageManager() {
+function getPackageManager () {
   if (!process.env.npm_execpath) {
     return 'unknown'
   }
@@ -32,6 +32,8 @@ const packageManager = getPackageManager()
 
 const alternativeCommand = alternativeCommands[packageManager]
 
+//  已弃用 create-app方式安装
+//  现使用 create vite方式安装
 console.warn(
   yellow(
     `\n@vitejs/create-app is deprecated, use ${green(
