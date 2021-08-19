@@ -5,6 +5,7 @@ import { ServerOptions as HttpsServerOptions } from 'https'
 import { ServerOptions } from '..'
 import { Connect } from 'types/connect'
 
+//  vite2没有通Koa来实现,而是通过原生http实现
 export async function resolveHttpServer(
   { https = false, proxy }: ServerOptions,
   app: Connect.Server

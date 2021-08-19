@@ -60,6 +60,7 @@ cli
   .option('-f, --filter <filter>', `[string] filter debug logs`)
 
 // dev
+// 开发模式使用vite dev开启
 cli
   .command('[root]') // default command
   .alias('serve')
